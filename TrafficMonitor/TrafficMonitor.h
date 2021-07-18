@@ -70,6 +70,7 @@ public:
     bool m_taksbar_transparent_color_enable{};
     bool m_last_light_mode{};
     bool m_show_mouse_panetrate_tip{};  //是否显示开启“鼠标穿透”时的提示消息。
+    bool m_show_dot_net_notinstalled_tip{};
 
     //bool m_is_windows10_fall_creator;
     CWinVersionHelper m_win_version;        //当前Windows的版本
@@ -89,6 +90,8 @@ public:
     std::shared_ptr<OpenHardwareMonitorApi::IOpenHardwareMonitor> m_pMonitor{};
 #endif // !WITHOUT_TEMPERATURE
 
+    CCriticalSection m_minitor_lib_critical;        //用于访问OpenHardwareMonitor进行线程同步的临界区对象
+    //CCriticalSection m_lftable_critical;            //用于访问LfTable2进行线程同步的临界区对象
 
 public:
     CTrafficMonitorApp();
@@ -130,6 +133,11 @@ public:
 
     bool IsCheckingForUpdate() const { return m_checking_update; }      //是否正在检查更新
 
+    void InitOpenHardwareLibInThread();     //开启一个后台线程初始化OpenHardwareMonitor
+    void UpdateOpenHardwareMonitorEnableState();    //更新硬件监控的启用/禁用状态
+
+    void UpdateTaskbarWndMenu();      //更新任务栏窗口右键菜单
+
 private:
     //int m_no_multistart_warning_time{};       //用于设置在开机后多长时间内不弹出“已经有一个程序正在运行”的警告提示
     bool m_no_multistart_warning{};         //如果为false，则永远都不会弹出“已经有一个程序正在运行”的警告提示
@@ -137,8 +145,6 @@ private:
     int m_dpi{ 96 };
 
     bool m_checking_update{ false };        //是否正在检查更新
-
-    struct CheckForUpdateLocker;
 
     std::map<UINT, HICON> m_menu_icons;      //菜单图标资源。key是图标资源的ID，vlaue是图标的句柄
 
@@ -151,6 +157,7 @@ public:
     DECLARE_MESSAGE_MAP()
     afx_msg void OnHelp();
     afx_msg void OnFrequentyAskedQuestions();
+    afx_msg void OnUpdateLog();
 };
 
 extern CTrafficMonitorApp theApp;

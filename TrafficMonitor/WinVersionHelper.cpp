@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "WinVersionHelper.h"
 
 
@@ -29,6 +29,17 @@ CWinVersionHelper::CWinVersionHelper()
 
 CWinVersionHelper::~CWinVersionHelper()
 {
+}
+
+bool CWinVersionHelper::IsWindows11OrLater() const
+{
+	if (m_major_version > 10)
+		return true;
+	else if (m_major_version == 10 && m_minor_version > 0)
+		return true;
+	else if (m_major_version == 10 && m_minor_version == 0 && m_build_number >= 21996)
+		return true;
+	else return false;
 }
 
 bool CWinVersionHelper::IsWindows10FallCreatorOrLater() const
@@ -94,6 +105,14 @@ void CWinVersionHelper::CheckWindows10LightTheme()
 	}
 }
 
+bool CWinVersionHelper::IsDotNetFramework4Point5Installed()
+{
+	DWORD netFramewordRelease{};
+	if (!GetDWORDRegKeyData(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full", L"Release", netFramewordRelease))
+		return false;
+	return netFramewordRelease >= 379893;
+}
+
 LONG CWinVersionHelper::GetDWORDRegKeyData(HKEY hKey, const wstring& strValueName, DWORD& dwValueData)
 {
 	DWORD dwBufferSize(sizeof(DWORD));
@@ -102,4 +121,12 @@ LONG CWinVersionHelper::GetDWORDRegKeyData(HKEY hKey, const wstring& strValueNam
 	if (lError == ERROR_SUCCESS)
 		dwValueData = dwResult;
 	return lError;
+}
+
+bool CWinVersionHelper::GetDWORDRegKeyData(HKEY keyParent, const wstring& strKeyName, const wstring& strValueName, DWORD& dwValueData)
+{
+    CRegKey key;
+	if (key.Open(keyParent, strKeyName.c_str(), KEY_READ) != ERROR_SUCCESS)
+		return false;
+	return (key.QueryDWORDValue(strValueName.c_str(), dwValueData) == ERROR_SUCCESS);
 }

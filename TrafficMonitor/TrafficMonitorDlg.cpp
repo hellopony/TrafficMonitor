@@ -27,7 +27,7 @@ CTrafficMonitorDlg::CTrafficMonitorDlg(CWnd* pParent /*=NULL*/)
 
 CTrafficMonitorDlg::~CTrafficMonitorDlg()
 {
-    FreeMibTable(m_pIfTable);
+    free(m_pIfTable);
 
     if (m_tBarDlg != nullptr)
     {
@@ -105,6 +105,8 @@ BEGIN_MESSAGE_MAP(CTrafficMonitorDlg, CDialog)
     ON_MESSAGE(WM_TASKBAR_WND_CLOSED, &CTrafficMonitorDlg::OnTaskbarWndClosed)
     ON_COMMAND(ID_SHOW_GPU, &CTrafficMonitorDlg::OnShowGpuUsage)
     ON_MESSAGE(WM_MONITOR_INFO_UPDATED, &CTrafficMonitorDlg::OnMonitorInfoUpdated)
+    ON_MESSAGE(WM_DISPLAYCHANGE, &CTrafficMonitorDlg::OnDisplaychange)
+    ON_WM_EXITSIZEMOVE()
 END_MESSAGE_MAP()
 
 
@@ -133,12 +135,12 @@ CString CTrafficMonitorDlg::GetMouseTipsInfo()
     }
     if (!skin_layout.GetItem(TDI_CPU).show)
     {
-        temp.Format(_T("\r\n%s: %d%%"), CCommon::LoadText(IDS_CPU_USAGE), theApp.m_cpu_usage);
+        temp.Format(_T("\r\n%s: %d %%"), CCommon::LoadText(IDS_CPU_USAGE), theApp.m_cpu_usage);
         tip_info += temp;
     }
     if (!skin_layout.GetItem(TDI_MEMORY).show)
     {
-        temp.Format(_T("\r\n%s: %s/%s (%d%%)"), CCommon::LoadText(IDS_MEMORY_USAGE),
+        temp.Format(_T("\r\n%s: %s/%s (%d %%)"), CCommon::LoadText(IDS_MEMORY_USAGE),
             CCommon::KBytesToString(theApp.m_used_memory),
             CCommon::KBytesToString(theApp.m_total_memory), theApp.m_memory_usage);
         tip_info += temp;
@@ -151,30 +153,33 @@ CString CTrafficMonitorDlg::GetMouseTipsInfo()
         tip_info += temp;
     }
 #ifndef WITHOUT_TEMPERATURE
-    if (!skin_layout.GetItem(TDI_GPU_USAGE).show && theApp.m_gpu_usage >= 0)
+    if (IsTemperatureNeeded())
     {
-        temp.Format(_T("\r\n%s: %d%%"), CCommon::LoadText(IDS_GPU_USAGE), theApp.m_gpu_usage);
-        tip_info += temp;
-    }
-    if (!skin_layout.GetItem(TDI_CPU_TEMP).show && theApp.m_cpu_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_CPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_cpu_temperature, theApp.m_main_wnd_data));
-        tip_info += temp;
-    }
-    if (!skin_layout.GetItem(TDI_GPU_TEMP).show && theApp.m_gpu_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_GPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_gpu_temperature, theApp.m_main_wnd_data));
-        tip_info += temp;
-    }
-    if (!skin_layout.GetItem(TDI_HDD_TEMP).show && theApp.m_hdd_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_HDD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_hdd_temperature, theApp.m_main_wnd_data));
-        tip_info += temp;
-    }
-    if (!skin_layout.GetItem(TDI_MAIN_BOARD_TEMP).show && theApp.m_main_board_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_MAINBOARD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_main_board_temperature, theApp.m_main_wnd_data));
-        tip_info += temp;
+        if (theApp.m_general_data.IsHardwareEnable(HI_GPU) && !skin_layout.GetItem(TDI_GPU_USAGE).show && theApp.m_gpu_usage >= 0)
+        {
+            temp.Format(_T("\r\n%s: %d %%"), CCommon::LoadText(IDS_GPU_USAGE), theApp.m_gpu_usage);
+            tip_info += temp;
+        }
+        if (theApp.m_general_data.IsHardwareEnable(HI_CPU) && !skin_layout.GetItem(TDI_CPU_TEMP).show && theApp.m_cpu_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_CPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_cpu_temperature, theApp.m_main_wnd_data));
+            tip_info += temp;
+        }
+        if (theApp.m_general_data.IsHardwareEnable(HI_GPU) && !skin_layout.GetItem(TDI_GPU_TEMP).show && theApp.m_gpu_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_GPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_gpu_temperature, theApp.m_main_wnd_data));
+            tip_info += temp;
+        }
+        if (theApp.m_general_data.IsHardwareEnable(HI_HDD) && !skin_layout.GetItem(TDI_HDD_TEMP).show && theApp.m_hdd_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_HDD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_hdd_temperature, theApp.m_main_wnd_data));
+            tip_info += temp;
+        }
+        if (theApp.m_general_data.IsHardwareEnable(HI_MBD) && !skin_layout.GetItem(TDI_MAIN_BOARD_TEMP).show && theApp.m_main_board_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_MAINBOARD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_main_board_temperature, theApp.m_main_wnd_data));
+            tip_info += temp;
+        }
     }
 #endif
     return tip_info;
@@ -206,7 +211,7 @@ void CTrafficMonitorDlg::SetAlwaysOnTop()
     else if (theApp.m_main_wnd_data.hide_main_wnd_when_fullscreen && m_is_foreground_fullscreen)        //当设置有程序全屏时隐藏悬浮窗且有程序在全屏运行时，不执行置顶操作
         return;
 
-    if (theApp.m_cfg_data.m_always_on_top)
+    if (theApp.m_main_wnd_data.m_always_on_top)
         SetWindowPos(&wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);         //设置置顶
     else
         SetWindowPos(&wndNoTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);       //取消置顶
@@ -215,7 +220,7 @@ void CTrafficMonitorDlg::SetAlwaysOnTop()
 
 void CTrafficMonitorDlg::SetMousePenetrate()
 {
-    if (theApp.m_cfg_data.m_mouse_penetrate)
+    if (theApp.m_main_wnd_data.m_mouse_penetrate)
     {
         SetWindowLong(m_hWnd, GWL_EXSTYLE, GetWindowLong(m_hWnd, GWL_EXSTYLE) | WS_EX_TRANSPARENT);     //设置鼠标穿透
     }
@@ -225,50 +230,62 @@ void CTrafficMonitorDlg::SetMousePenetrate()
     }
 }
 
-void CTrafficMonitorDlg::CheckWindowPos()
+POINT CTrafficMonitorDlg::CalculateWindowMoveOffset(CRect rect, bool screen_changed)
 {
-    if (!theApp.m_cfg_data.m_alow_out_of_border)
+    POINT mov{};    // 所需偏移量
+    if (m_screen_rects.size() != 0)
+    {
+        // 确保窗口完整在一个监视器内并且可见，判断移动距离并向所需移动距离较小的方向移动
+        LONG mov_xy = 0;          // 记录移动距离
+        int i = 0;
+        for (auto& a : m_screen_rects)
+        {
+            LONG x = 0, y = 0;
+            if (rect.left < a.left)                 // 需要向右移动
+                x = a.left - rect.left;
+            if (rect.top < a.top)                   // 需要向下移动
+                y = a.top - rect.top;
+
+            CRect last_screen_rect = m_last_screen_rects[i];
+            if (screen_changed && a != last_screen_rect)
+            {
+                float proportion_width = (float)rect.left / (last_screen_rect.right - rect.Width());
+                float proportion_height = (float)rect.top / (last_screen_rect.bottom - rect.Height());
+                x = (a.right - rect.Width()) * proportion_width - rect.left;
+                y = (a.bottom - rect.Height()) * proportion_height - rect.top;
+            }
+            else
+            {
+                if (rect.right > a.right)          // 需要向左移动
+                    x = a.right - rect.right;
+                if (rect.bottom > a.bottom)        // 需要向上移动
+                    y = a.bottom - rect.bottom;
+            }
+            if (x == 0 && y == 0)           // 窗口已在一个监视器内
+            {
+                mov.x = 0;
+                mov.y = 0;
+                break;
+            }
+            else if (abs(x) + abs(y) < mov_xy || mov_xy == 0)
+            {
+                mov.x = x;
+                mov.y = y;
+                mov_xy = abs(x) + abs(y);
+            }
+            i++;
+        }
+    }
+    return mov;
+}
+
+void CTrafficMonitorDlg::CheckWindowPos(bool screen_changed)
+{
+    if (!theApp.m_main_wnd_data.m_alow_out_of_border)
     {
         CRect rect;
         GetWindowRect(rect);
-        if (m_screen_rect.Width() <= rect.Width() || m_screen_rect.Height() <= rect.Height())
-            return;
-        if (rect.left < m_screen_rect.left)
-        {
-            rect.MoveToX(m_screen_rect.left);
-            MoveWindow(rect);
-        }
-        if (rect.top < m_screen_rect.top)
-        {
-            rect.MoveToY(m_screen_rect.top);
-            MoveWindow(rect);
-        }
-
-        CRect cuccent_screen_rect;
-        ::SystemParametersInfo(SPI_GETWORKAREA, 0, &cuccent_screen_rect, 0);   // 获得当前工作区大小
-        if (m_screen_rect != cuccent_screen_rect)
-        {
-            float proportion_width = (float)rect.left / (m_screen_rect.right - rect.Width());
-            float proportion_height = (float)rect.top / (m_screen_rect.bottom - rect.Height());
-            int x = (cuccent_screen_rect.right - rect.Width()) * proportion_width;
-            int y = (cuccent_screen_rect.bottom - rect.Height()) * proportion_height;
-            m_screen_rect = cuccent_screen_rect;
-            rect.MoveToXY(x, y);
-            MoveWindow(rect);
-        }
-        else
-        {
-            if (rect.right > m_screen_rect.right)
-            {
-                rect.MoveToX(m_screen_rect.right - rect.Width());
-                MoveWindow(rect);
-            }
-            if (rect.bottom > m_screen_rect.bottom)
-            {
-                rect.MoveToY(m_screen_rect.bottom - rect.Height());
-                MoveWindow(rect);
-            }
-        }
+        MoveWindow(rect + CalculateWindowMoveOffset(rect, screen_changed));
     }
 }
 
@@ -278,6 +295,15 @@ void CTrafficMonitorDlg::GetScreenSize()
     m_screen_size.cy = GetSystemMetrics(SM_CYSCREEN);
 
     //::SystemParametersInfo(SPI_GETWORKAREA, 0, &m_screen_rect, 0);   // 获得工作区大小
+
+    //获取所有屏幕工作区的大小
+    m_last_screen_rects = m_screen_rects;
+    m_screen_rects.clear();
+    Monitors monitors;
+    for (auto& a : monitors.monitorinfos)
+    {
+        m_screen_rects.push_back(a.rcWork);
+    }
 }
 
 
@@ -290,9 +316,10 @@ void CTrafficMonitorDlg::AutoSelect()
     //自动选择连接时，查找已发送和已接收字节数之和最多的那个连接，并将其设置为当前查看的连接
     for (size_t i{}; i < m_connections.size(); i++)
     {
-        if (m_pIfTable->Table[m_connections[i].index].OperStatus == IfOperStatusUp)     //只选择网络状态为正常的连接
+        auto table = GetConnectIfTable(i);
+        if (table.dwOperStatus == IF_OPER_STATUS_OPERATIONAL)     //只选择网络状态为正常的连接
         {
-            in_out_bytes = m_pIfTable->Table[m_connections[i].index].InOctets + m_pIfTable->Table[m_connections[i].index].OutOctets;
+            in_out_bytes = table.dwInOctets + table.dwOutOctets;
             if (in_out_bytes > max_in_out_bytes)
             {
                 max_in_out_bytes = in_out_bytes;
@@ -306,8 +333,19 @@ void CTrafficMonitorDlg::AutoSelect()
 
 void CTrafficMonitorDlg::IniConnection()
 {
-    FreeMibTable(m_pIfTable);
-    GetIfTable2(&m_pIfTable);
+    //为m_pIfTable开辟所需大小的内存
+    free(m_pIfTable);
+    m_dwSize = sizeof(MIB_IFTABLE);
+    m_pIfTable = (MIB_IFTABLE*)malloc(m_dwSize);
+    int rtn;
+    rtn = GetIfTable(m_pIfTable, &m_dwSize, FALSE);
+    if (rtn == ERROR_INSUFFICIENT_BUFFER)	//如果函数返回值为ERROR_INSUFFICIENT_BUFFER，说明m_pIfTable的大小不够
+    {
+        free(m_pIfTable);
+        m_pIfTable = (MIB_IFTABLE*)malloc(m_dwSize);	//用新的大小重新开辟一块内存
+    }
+    GetIfTable(m_pIfTable, &m_dwSize, FALSE);
+
     //获取当前所有的连接，并保存到m_connections容器中
     if (!theApp.m_general_data.show_all_interface)
     {
@@ -340,11 +378,11 @@ void CTrafficMonitorDlg::IniConnection()
             log_str += _T("\n");
         }
         log_str += _T("IfTable:\n");
-        for (size_t i{}; i < m_pIfTable->NumEntries; i++)
+        for (size_t i{}; i < m_pIfTable->dwNumEntries; i++)
         {
             log_str += CCommon::IntToString(i);
             log_str += _T(" ");
-            log_str += m_pIfTable->Table[i].Description;
+            log_str += (const char*)m_pIfTable->table[i].bDescr;
             log_str += _T("\n");
         }
         CCommon::WriteLog(log_str, (theApp.m_config_dir + L".\\connections.log").c_str());
@@ -388,6 +426,17 @@ void CTrafficMonitorDlg::IniConnection()
     m_connection_change_flag = true;
 }
 
+MIB_IFROW CTrafficMonitorDlg::GetConnectIfTable(int connection_index)
+{
+    if (connection_index >= 0 && connection_index < static_cast<int>(m_connections.size()))
+    {
+        int index = m_connections[connection_index].index;
+        if (m_pIfTable != nullptr && index >= 0 && index < m_pIfTable->dwNumEntries)
+            return m_pIfTable->table[index];
+    }
+    return MIB_IFROW();
+}
+
 void CTrafficMonitorDlg::IniConnectionMenu(CMenu* pMenu)
 {
     ASSERT(pMenu != nullptr);
@@ -403,7 +452,7 @@ void CTrafficMonitorDlg::IniConnectionMenu(CMenu* pMenu)
         CString connection_descr;
         for (size_t i{}; i < m_connections.size(); i++)
         {
-            connection_descr = m_connections[i].description.c_str();
+            connection_descr = CCommon::StrToUnicode(m_connections[i].description.c_str()).c_str();
             pMenu->AppendMenu(MF_STRING | MF_ENABLED, ID_SELECT_ALL_CONNECTION + i + 1, connection_descr);
         }
     }
@@ -504,18 +553,21 @@ void CTrafficMonitorDlg::UpdateNotifyIconTip()
 
     strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>/s"), { CCommon::LoadText(IDS_UPLOAD), out_speed });
     strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>/s"), { CCommon::LoadText(IDS_DOWNLOAD), in_speed });
-    strTip += CCommon::StringFormat(_T("\r\nCPU: <%1%>%"), { theApp.m_cpu_usage });
-    strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>%"), { CCommon::LoadText(IDS_MEMORY), theApp.m_memory_usage });
-    if (theApp.m_gpu_usage >= 0)
-        strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>"), { CCommon::LoadText(IDS_GPU_USAGE), theApp.m_gpu_usage });
-    if (theApp.m_cpu_temperature > 0)
-        strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>"), { CCommon::LoadText(IDS_CPU_TEMPERATURE), static_cast<int>(theApp.m_cpu_temperature) });
-    if (theApp.m_gpu_temperature > 0)
-        strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>"), { CCommon::LoadText(IDS_GPU_TEMPERATURE), static_cast<int>(theApp.m_gpu_temperature) });
-    if (theApp.m_hdd_temperature > 0)
-        strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>"), { CCommon::LoadText(IDS_HDD_TEMPERATURE), static_cast<int>(theApp.m_hdd_temperature) });
-    if (theApp.m_main_board_temperature > 0)
-        strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%>"), { CCommon::LoadText(IDS_MAINBOARD_TEMPERATURE), static_cast<int>(theApp.m_main_board_temperature) });
+    strTip += CCommon::StringFormat(_T("\r\nCPU: <%1%> %"), { theApp.m_cpu_usage });
+    strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> %"), { CCommon::LoadText(IDS_MEMORY), theApp.m_memory_usage });
+    if (IsTemperatureNeeded())
+    {
+        if (theApp.m_general_data.IsHardwareEnable(HI_GPU) && theApp.m_gpu_usage >= 0)
+            strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> %"), { CCommon::LoadText(IDS_GPU_USAGE), theApp.m_gpu_usage });
+        if (theApp.m_general_data.IsHardwareEnable(HI_CPU) && theApp.m_cpu_temperature > 0)
+            strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> °C"), { CCommon::LoadText(IDS_CPU_TEMPERATURE), static_cast<int>(theApp.m_cpu_temperature) });
+        if (theApp.m_general_data.IsHardwareEnable(HI_GPU) && theApp.m_gpu_temperature > 0)
+            strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> °C"), { CCommon::LoadText(IDS_GPU_TEMPERATURE), static_cast<int>(theApp.m_gpu_temperature) });
+        if (theApp.m_general_data.IsHardwareEnable(HI_HDD) && theApp.m_hdd_temperature > 0)
+            strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> °C"), { CCommon::LoadText(IDS_HDD_TEMPERATURE), static_cast<int>(theApp.m_hdd_temperature) });
+        if (theApp.m_general_data.IsHardwareEnable(HI_MBD) && theApp.m_main_board_temperature > 0)
+            strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> °C"), { CCommon::LoadText(IDS_MAINBOARD_TEMPERATURE), static_cast<int>(theApp.m_main_board_temperature) });
+    }
 
     CCommon::WStringCopy(m_ntIcon.szTip, 128, strTip);
     ::Shell_NotifyIcon(NIM_MODIFY, &m_ntIcon);
@@ -560,6 +612,7 @@ void CTrafficMonitorDlg::BackupHistoryTrafficFile()
 void CTrafficMonitorDlg::_OnOptions(int tab)
 {
     COptionsDlg optionsDlg(tab);
+
     //将选项设置数据传递给选项设置对话框
     optionsDlg.m_tab1_dlg.m_data = theApp.m_main_wnd_data;
     optionsDlg.m_tab2_dlg.m_data = theApp.m_taskbar_data;
@@ -568,6 +621,11 @@ void CTrafficMonitorDlg::_OnOptions(int tab)
 
     if (optionsDlg.DoModal() == IDOK)
     {
+        bool is_hardware_monitor_item_changed = (optionsDlg.m_tab3_dlg.m_data.hardware_monitor_item != theApp.m_general_data.hardware_monitor_item);
+        bool is_always_on_top_changed = (optionsDlg.m_tab1_dlg.m_data.m_always_on_top != theApp.m_main_wnd_data.m_always_on_top);
+        bool is_mouse_penerate_changed = (optionsDlg.m_tab1_dlg.m_data.m_mouse_penetrate != theApp.m_main_wnd_data.m_mouse_penetrate);
+        bool is_alow_out_of_border_changed = (optionsDlg.m_tab1_dlg.m_data.m_alow_out_of_border != theApp.m_main_wnd_data.m_alow_out_of_border);
+
         theApp.m_main_wnd_data = optionsDlg.m_tab1_dlg.m_data;
         theApp.m_taskbar_data = optionsDlg.m_tab2_dlg.m_data;
         theApp.m_general_data = optionsDlg.m_tab3_dlg.m_data;
@@ -591,14 +649,57 @@ void CTrafficMonitorDlg::_OnOptions(int tab)
 
         if (optionsDlg.m_tab3_dlg.IsMonitorTimeSpanModified())      //如果监控时间间隔改变了，则重设定时器
         {
-            //KillTimer(MONITOR_TIMER);
-            //SetTimer(MONITOR_TIMER, theApp.m_general_data.monitor_time_span, NULL);
-            m_timer.KillTimer();
-            m_timer.CreateTimer((DWORD_PTR)this, theApp.m_general_data.monitor_time_span, TimerCallbackTemp);
+            KillTimer(MONITOR_TIMER);
+            SetTimer(MONITOR_TIMER, theApp.m_general_data.monitor_time_span, NULL);
+            //m_timer.KillTimer();
+            //m_timer.CreateTimer((DWORD_PTR)this, theApp.m_general_data.monitor_time_span, MonitorThreadCallback);
         }
 
         //设置获取CPU利用率的方式
         m_cpu_usage.SetUseCPUTimes(theApp.m_general_data.m_get_cpu_usage_by_cpu_times);
+
+#ifndef WITHOUT_TEMPERATURE
+        if (is_hardware_monitor_item_changed)
+        {
+            //如果关闭了硬件监控，则析构硬件监控类
+            if (theApp.m_general_data.hardware_monitor_item == 0)
+            {
+                CSingleLock sync(&theApp.m_minitor_lib_critical, TRUE);
+                theApp.m_pMonitor.reset();
+            }
+            else if (theApp.m_pMonitor != nullptr)
+            {
+                theApp.UpdateOpenHardwareMonitorEnableState();
+            }
+            else if (IsTemperatureNeeded())
+            {
+                theApp.InitOpenHardwareLibInThread();
+            }
+            //更新任务栏窗口右键菜单
+            theApp.UpdateTaskbarWndMenu();
+        }
+#endif
+
+        if (is_always_on_top_changed)
+        {
+            SetAlwaysOnTop();
+        }
+
+        if (is_mouse_penerate_changed)
+        {
+            SetMousePenetrate();
+            if (theApp.m_main_wnd_data.m_mouse_penetrate && !theApp.m_cfg_data.m_show_notify_icon)   //鼠标穿透时，如果通知图标没有显示，则将它显示出来，否则无法呼出右键菜单
+            {
+                //添加通知栏图标
+                AddNotifyIcon();
+                theApp.m_cfg_data.m_show_notify_icon = true;
+            }
+        }
+
+        if (is_alow_out_of_border_changed)
+        {
+            CheckWindowPos();
+        }
 
         theApp.SaveConfig();
         theApp.SaveGlobalConfig();
@@ -700,6 +801,37 @@ void CTrafficMonitorDlg::TaskbarShowHideItem(DisplayItem type)
     }
 }
 
+bool CTrafficMonitorDlg::IsTemperatureNeeded() const
+{
+    //判断是否需要从OpenHardwareMonitor获取信息。
+    ////只有主窗口和任务栏窗口中CPU温度、显卡利用率、显卡温度、硬盘温度和主板温度中至少有一个要显示，才返回true
+    //bool needed = false;
+    //if (theApp.m_cfg_data.m_show_task_bar_wnd && IsTaskbarWndValid())
+    //{
+    //    needed |= m_tBarDlg->IsShowCpuTemperature();
+    //    needed |= m_tBarDlg->IsShowGpu();
+    //    needed |= m_tBarDlg->IsShowGpuTemperature();
+    //    needed |= m_tBarDlg->IsShowHddTemperature();
+    //    needed |= m_tBarDlg->IsShowMainboardTemperature();
+    //    needed |= (::IsWindow(m_tBarDlg->m_tool_tips.GetSafeHwnd()) && m_tBarDlg->m_tool_tips.IsWindowVisible());
+    //}
+
+    //if (!theApp.m_cfg_data.m_hide_main_window)
+    //{
+    //    const CSkinFile::Layout& skin_layout{ theApp.m_cfg_data.m_show_more_info ? m_skin.GetLayoutInfo().layout_l : m_skin.GetLayoutInfo().layout_s }; //当前的皮肤布局
+    //    needed |= skin_layout.GetItem(TDI_CPU_TEMP).show;
+    //    needed |= skin_layout.GetItem(TDI_GPU_USAGE).show;
+    //    needed |= skin_layout.GetItem(TDI_GPU_TEMP).show;
+    //    needed |= skin_layout.GetItem(TDI_HDD_TEMP).show;
+    //    needed |= skin_layout.GetItem(TDI_MAIN_BOARD_TEMP).show;
+    //    needed |= (::IsWindow(m_tool_tips.GetSafeHwnd()) && m_tool_tips.IsWindowVisible());
+    //}
+    //return needed;
+
+    return theApp.m_general_data.IsHardwareEnable(HI_CPU) || theApp.m_general_data.IsHardwareEnable(HI_GPU)
+        || theApp.m_general_data.IsHardwareEnable(HI_HDD) || theApp.m_general_data.IsHardwareEnable(HI_MBD);
+}
+
 // CTrafficMonitorDlg 消息处理程序
 
 BOOL CTrafficMonitorDlg::OnInitDialog()
@@ -712,16 +844,19 @@ BOOL CTrafficMonitorDlg::OnInitDialog()
     SetIcon(m_hIcon, FALSE);        // 设置小图标
 
     // TODO: 在此添加额外的初始化代码
-    SetWindowText(_T("TrafficMonitor"));
+    SetWindowText(APP_NAME);
     //设置隐藏任务栏图标
     ModifyStyleEx(WS_EX_APPWINDOW, WS_EX_TOOLWINDOW);
 
     theApp.DPIFromWindow(this);
     //获取屏幕大小
     GetScreenSize();
-    ::SystemParametersInfo(SPI_GETWORKAREA, 0, &m_screen_rect, 0);   // 获得工作区大小
+    m_last_screen_rects = m_screen_rects;
+    //::SystemParametersInfo(SPI_GETWORKAREA, 0, &m_screen_rect, 0);   // 获得工作区大小
 
+    //初始化菜单
     theApp.InitMenuResourse();
+    theApp.UpdateTaskbarWndMenu();
 
     //设置窗口透明度
     SetTransparency();
@@ -729,7 +864,7 @@ BOOL CTrafficMonitorDlg::OnInitDialog()
     IniConnection();    //初始化连接
 
     //如果启动时设置了鼠标穿透或隐藏主窗口，并且没有显示任务栏窗口，则显示通知区图标
-    if ((theApp.m_cfg_data.m_mouse_penetrate || theApp.m_cfg_data.m_hide_main_window) && !theApp.m_cfg_data.m_show_task_bar_wnd)
+    if ((theApp.m_main_wnd_data.m_mouse_penetrate || theApp.m_cfg_data.m_hide_main_window) && !theApp.m_cfg_data.m_show_task_bar_wnd)
         theApp.m_cfg_data.m_show_notify_icon = true;
 
     //载入通知区图标
@@ -765,8 +900,8 @@ BOOL CTrafficMonitorDlg::OnInitDialog()
     //设置1000毫秒触发的定时器
     SetTimer(MAIN_TIMER, 1000, NULL);
 
-    //SetTimer(MONITOR_TIMER, theApp.m_general_data.monitor_time_span, NULL);
-    m_timer.CreateTimer((DWORD_PTR)this, theApp.m_general_data.monitor_time_span, TimerCallbackTemp);
+    SetTimer(MONITOR_TIMER, theApp.m_general_data.monitor_time_span, NULL);
+    //m_timer.CreateTimer((DWORD_PTR)this, theApp.m_general_data.monitor_time_span, MonitorThreadCallback);
 
 
     //初始化皮肤
@@ -830,17 +965,19 @@ static int GetMonitorTimerCount(int second)
 }
 
 
-void CTrafficMonitorDlg::TimerCallbackTemp(DWORD_PTR dwUser)
+UINT CTrafficMonitorDlg::MonitorThreadCallback(LPVOID dwUser)
 {
     CTrafficMonitorDlg* pThis = (CTrafficMonitorDlg*)dwUser;
+    CFlagLocker flag_locker(pThis->m_is_monitor_thread_runing);
 
     //获取网络连接速度
-    FreeMibTable(pThis->m_pIfTable);
-    int rtn = GetIfTable2(&pThis->m_pIfTable);
+    int rtn = GetIfTable(pThis->m_pIfTable, &pThis->m_dwSize, FALSE);
+
     if (!theApp.m_cfg_data.m_select_all)        //获取当前选中连接的网速
     {
-        pThis->m_in_bytes = pThis->m_pIfTable->Table[pThis->m_connections[pThis->m_connection_selected].index].InOctets;
-        pThis->m_out_bytes = pThis->m_pIfTable->Table[pThis->m_connections[pThis->m_connection_selected].index].OutOctets;
+        auto table = pThis->GetConnectIfTable(pThis->m_connection_selected);
+        pThis->m_in_bytes = table.dwInOctets;
+        pThis->m_out_bytes = table.dwOutOctets;
     }
     else        //获取全部连接的网速
     {
@@ -848,11 +985,12 @@ void CTrafficMonitorDlg::TimerCallbackTemp(DWORD_PTR dwUser)
         pThis->m_out_bytes = 0;
         for (size_t i{}; i < pThis->m_connections.size(); i++)
         {
+            auto table = pThis->GetConnectIfTable(i);
             //if (i > 0 && m_pIfTable->table[m_connections[i].index].dwInOctets == m_pIfTable->table[m_connections[i - 1].index].dwInOctets
             //  && m_pIfTable->table[m_connections[i].index].dwOutOctets == m_pIfTable->table[m_connections[i - 1].index].dwOutOctets)
             //  continue;       //连接列表中可能会有相同的连接，统计所有连接的网速时，忽略掉已发送和已接收字节数完全相同的连接
-            pThis->m_in_bytes += pThis->m_pIfTable->Table[pThis->m_connections[i].index].InOctets;
-            pThis->m_out_bytes += pThis->m_pIfTable->Table[pThis->m_connections[i].index].OutOctets;
+            pThis->m_in_bytes += table.dwInOctets;
+            pThis->m_out_bytes += table.dwOutOctets;
         }
     }
 
@@ -930,14 +1068,14 @@ void CTrafficMonitorDlg::TimerCallbackTemp(DWORD_PTR dwUser)
         }
     }
 
-    //if (rtn == ERROR_NOT_ENOUGH_MEMORY)
-    //{
-    //  IniConnection();
-    //  CString info;
-    //  info.LoadString(IDS_INSUFFICIENT_BUFFER);
-    //  info.Replace(_T("<%cnt%>"), CCommon::IntToString(m_restart_cnt));
-    //  CCommon::WriteLog(info, theApp.m_log_path.c_str());
-    //}
+    if (rtn == ERROR_NOT_ENOUGH_MEMORY)
+    {
+        pThis->IniConnection();
+        CString info;
+        info.LoadString(IDS_INSUFFICIENT_BUFFER);
+        info.Replace(_T("<%cnt%>"), CCommon::IntToString(pThis->m_restart_cnt));
+        CCommon::WriteLog(info, theApp.m_log_path.c_str());
+    }
 
 
     if (pThis->m_monitor_time_cnt % GetMonitorTimerCount(3) == GetMonitorTimerCount(3) - 1)
@@ -961,8 +1099,8 @@ void CTrafficMonitorDlg::TimerCallbackTemp(DWORD_PTR dwUser)
         }
         last_interface_num = interface_num;
 
-        wstring descr;
-        descr = pThis->m_pIfTable->Table[pThis->m_connections[pThis->m_connection_selected].index].Description;
+        string descr;
+        descr = (const char*)pThis->GetConnectIfTable(pThis->m_connection_selected).bDescr;
         if (descr != theApp.m_cfg_data.m_connection_name)
         {
             //写入额外的调试信息
@@ -1001,14 +1139,60 @@ void CTrafficMonitorDlg::TimerCallbackTemp(DWORD_PTR dwUser)
 
 #ifndef WITHOUT_TEMPERATURE
     //获取温度
-    if (theApp.m_pMonitor != nullptr)
+    if (pThis->IsTemperatureNeeded() && theApp.m_pMonitor != nullptr)
     {
+        CSingleLock sync(&theApp.m_minitor_lib_critical, TRUE);
         theApp.m_pMonitor->GetHardwareInfo();
-        theApp.m_cpu_temperature = theApp.m_pMonitor->CpuTemperature();
+        //theApp.m_cpu_temperature = theApp.m_pMonitor->CpuTemperature();
         theApp.m_gpu_temperature = theApp.m_pMonitor->GpuTemperature();
-        theApp.m_hdd_temperature = theApp.m_pMonitor->HDDTemperature();
+        //theApp.m_hdd_temperature = theApp.m_pMonitor->HDDTemperature();
         theApp.m_main_board_temperature = theApp.m_pMonitor->MainboardTemperature();
         theApp.m_gpu_usage = theApp.m_pMonitor->GpuUsage();
+        //获取CPU温度
+        if (!theApp.m_pMonitor->AllCpuTemperature().empty())
+        {
+            if (theApp.m_general_data.cpu_core_name == CCommon::LoadText(IDS_AVREAGE_TEMPERATURE).GetString())  //如果选择了平均温度
+            {
+                theApp.m_cpu_temperature = theApp.m_pMonitor->CpuTemperature();
+            }
+            else
+            {
+                auto iter = theApp.m_pMonitor->AllCpuTemperature().find(theApp.m_general_data.cpu_core_name);
+                if (iter == theApp.m_pMonitor->AllCpuTemperature().end())
+                {
+                    iter = theApp.m_pMonitor->AllCpuTemperature().begin();
+                    theApp.m_general_data.cpu_core_name = iter->first;
+                }
+                theApp.m_cpu_temperature = iter->second;
+            }
+        }
+        else
+        {
+            theApp.m_cpu_temperature = -1;
+        }
+        //获取硬盘温度
+        if (!theApp.m_pMonitor->AllHDDTemperature().empty())
+        {
+            auto iter = theApp.m_pMonitor->AllHDDTemperature().find(theApp.m_general_data.hard_disk_name);
+            if (iter == theApp.m_pMonitor->AllHDDTemperature().end())
+            {
+                iter = theApp.m_pMonitor->AllHDDTemperature().begin();
+                theApp.m_general_data.hard_disk_name = iter->first;
+            }
+            theApp.m_hdd_temperature = iter->second;
+        }
+        else
+        {
+            theApp.m_hdd_temperature = -1;
+        }
+    }
+    else
+    {
+        theApp.m_cpu_temperature = -1;
+        theApp.m_gpu_temperature = -1;
+        theApp.m_hdd_temperature = -1;
+        theApp.m_main_board_temperature = -1;
+        theApp.m_gpu_usage = -1;
     }
 #endif
 
@@ -1016,15 +1200,19 @@ void CTrafficMonitorDlg::TimerCallbackTemp(DWORD_PTR dwUser)
     pThis->m_monitor_time_cnt++;
 
     //发送监控信息更新消息
-    pThis->PostMessage(WM_MONITOR_INFO_UPDATED);
+    pThis->SendMessage(WM_MONITOR_INFO_UPDATED);
+
+    return 0;
 }
 
 void CTrafficMonitorDlg::OnTimer(UINT_PTR nIDEvent)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
-    //if (nIDEvent == MONITOR_TIMER)
-    //{
-    //}
+    if (nIDEvent == MONITOR_TIMER)
+    {
+        if (!m_is_monitor_thread_runing)    //确保线程已退出
+            AfxBeginThread(MonitorThreadCallback, (LPVOID)this);
+    }
 
     if (nIDEvent == MAIN_TIMER)
     {
@@ -1051,7 +1239,7 @@ void CTrafficMonitorDlg::OnTimer(UINT_PTR nIDEvent)
             m_first_start = false;
         }
 
-        if (theApp.m_cfg_data.m_always_on_top && !theApp.m_cfg_data.m_hide_main_window)
+        if (theApp.m_main_wnd_data.m_always_on_top && !theApp.m_cfg_data.m_hide_main_window)
         {
             //每隔1秒钟就判断一下前台窗口是否全屏
             m_is_foreground_fullscreen = CCommon::IsForegroundFullscreen();
@@ -1089,7 +1277,7 @@ void CTrafficMonitorDlg::OnTimer(UINT_PTR nIDEvent)
                 }
             }
 
-            if (m_timer_cnt % 300 == 299 && !theApp.m_cfg_data.m_hide_main_window && theApp.m_cfg_data.m_always_on_top)
+            if (m_timer_cnt % 300 == 299 && !theApp.m_cfg_data.m_hide_main_window && theApp.m_main_wnd_data.m_always_on_top)
             {
                 SetAlwaysOnTop();       //每5分钟执行一次设置窗口置顶
             }
@@ -1173,25 +1361,25 @@ void CTrafficMonitorDlg::OnTimer(UINT_PTR nIDEvent)
         checkNotifyTip(theApp.m_general_data.memory_usage_tip, theApp.m_memory_usage, last_memory_usage, memory_usage_notify_time, info.GetString());
 
         //检查是否要弹出CPU温度使用率超出提示
-        info.Format(CCommon::LoadText(IDS_CPU_TEMPERATURE_EXCEED, _T(" %d℃!")), static_cast<int>(theApp.m_cpu_temperature));
+        info.Format(CCommon::LoadText(IDS_CPU_TEMPERATURE_EXCEED, _T(" %d°C!")), static_cast<int>(theApp.m_cpu_temperature));
         static int last_cpu_temp;
         static int cpu_temp_notify_time{ -theApp.m_notify_interval };       //记录上次弹出提示时的时间
         checkNotifyTip(theApp.m_general_data.cpu_temp_tip, theApp.m_cpu_temperature, last_cpu_temp, cpu_temp_notify_time, info.GetString());
 
         //检查是否要弹出显卡温度使用率超出提示
-        info.Format(CCommon::LoadText(IDS_GPU_TEMPERATURE_EXCEED, _T(" %d℃!")), static_cast<int>(theApp.m_gpu_temperature));
+        info.Format(CCommon::LoadText(IDS_GPU_TEMPERATURE_EXCEED, _T(" %d°C!")), static_cast<int>(theApp.m_gpu_temperature));
         static int last_gpu_temp;
         static int gpu_temp_notify_time{ -theApp.m_notify_interval };       //记录上次弹出提示时的时间
         checkNotifyTip(theApp.m_general_data.gpu_temp_tip, theApp.m_gpu_temperature, last_gpu_temp, gpu_temp_notify_time, info.GetString());
 
         //检查是否要弹出硬盘温度使用率超出提示
-        info.Format(CCommon::LoadText(IDS_HDD_TEMPERATURE_EXCEED, _T(" %d℃!")), static_cast<int>(theApp.m_hdd_temperature));
+        info.Format(CCommon::LoadText(IDS_HDD_TEMPERATURE_EXCEED, _T(" %d°C!")), static_cast<int>(theApp.m_hdd_temperature));
         static int last_hdd_temp;
         static int hdd_temp_notify_time{ -theApp.m_notify_interval };       //记录上次弹出提示时的时间
         checkNotifyTip(theApp.m_general_data.hdd_temp_tip, theApp.m_hdd_temperature, last_hdd_temp, hdd_temp_notify_time, info.GetString());
 
         //检查是否要弹出主板温度使用率超出提示
-        info.Format(CCommon::LoadText(IDS_MBD_TEMPERATURE_EXCEED, _T(" %d℃!")), static_cast<int>(theApp.m_main_board_temperature));
+        info.Format(CCommon::LoadText(IDS_MBD_TEMPERATURE_EXCEED, _T(" %d°C!")), static_cast<int>(theApp.m_main_board_temperature));
         static int last_main_board_temp;
         static int main_board_temp_notify_time{ -theApp.m_notify_interval };        //记录上次弹出提示时的时间
         checkNotifyTip(theApp.m_general_data.mainboard_temp_tip, theApp.m_main_board_temperature, last_main_board_temp, main_board_temp_notify_time, info.GetString());
@@ -1401,7 +1589,7 @@ void CTrafficMonitorDlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
     //在未锁定窗口位置时允许通过点击窗口内部来拖动窗口
-    if (!theApp.m_cfg_data.m_lock_window_pos)
+    if (!theApp.m_main_wnd_data.m_lock_window_pos)
         PostMessage(WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(point.x, point.y));
     CDialog::OnLButtonDown(nFlags, point);
 }
@@ -1411,7 +1599,7 @@ void CTrafficMonitorDlg::OnNetworkInfo()
 {
     // TODO: 在此添加命令处理程序代码
     //弹出“连接详情”对话框
-    CNetworkInfoDlg aDlg(m_connections, m_pIfTable, m_connection_selected);
+    CNetworkInfoDlg aDlg(m_connections, m_pIfTable->table, m_connection_selected);
     ////向CNetworkInfoDlg类传递自启动以来已发送和接收的字节数
     //aDlg.m_in_bytes = m_pIfTable->table[m_connections[m_connection_selected].index].dwInOctets - m_connections[m_connection_selected].in_bytes;
     //aDlg.m_out_bytes = m_pIfTable->table[m_connections[m_connection_selected].index].dwOutOctets - m_connections[m_connection_selected].out_bytes;
@@ -1426,7 +1614,7 @@ void CTrafficMonitorDlg::OnNetworkInfo()
 void CTrafficMonitorDlg::OnAlwaysOnTop()
 {
     // TODO: 在此添加命令处理程序代码
-    theApp.m_cfg_data.m_always_on_top = !theApp.m_cfg_data.m_always_on_top;
+    theApp.m_main_wnd_data.m_always_on_top = !theApp.m_main_wnd_data.m_always_on_top;
     SetAlwaysOnTop();
     theApp.SaveConfig();
 }
@@ -1435,7 +1623,7 @@ void CTrafficMonitorDlg::OnAlwaysOnTop()
 void CTrafficMonitorDlg::OnUpdateAlwaysOnTop(CCmdUI* pCmdUI)
 {
     // TODO: 在此添加命令更新用户界面处理程序代码
-    pCmdUI->SetCheck(theApp.m_cfg_data.m_always_on_top);
+    pCmdUI->SetCheck(theApp.m_main_wnd_data.m_always_on_top);
 }
 
 
@@ -1633,7 +1821,7 @@ void CTrafficMonitorDlg::OnInitMenu(CMenu* pMenu)
     default: break;
     }
 
-    if (!theApp.m_cfg_data.m_show_task_bar_wnd && (theApp.m_cfg_data.m_hide_main_window || theApp.m_cfg_data.m_mouse_penetrate))    //如果没有显示任务栏窗口，且隐藏了主窗口或设置了鼠标穿透，则禁用“显示通知区图标”菜单项
+    if (!theApp.m_cfg_data.m_show_task_bar_wnd && (theApp.m_cfg_data.m_hide_main_window || theApp.m_main_wnd_data.m_mouse_penetrate))    //如果没有显示任务栏窗口，且隐藏了主窗口或设置了鼠标穿透，则禁用“显示通知区图标”菜单项
         pMenu->EnableMenuItem(ID_SHOW_NOTIFY_ICON, MF_BYCOMMAND | MF_GRAYED);
     else
         pMenu->EnableMenuItem(ID_SHOW_NOTIFY_ICON, MF_BYCOMMAND | MF_ENABLED);
@@ -1665,7 +1853,7 @@ BOOL CTrafficMonitorDlg::PreTranslateMessage(MSG* pMsg)
 void CTrafficMonitorDlg::OnLockWindowPos()
 {
     // TODO: 在此添加命令处理程序代码
-    theApp.m_cfg_data.m_lock_window_pos = !theApp.m_cfg_data.m_lock_window_pos;
+    theApp.m_main_wnd_data.m_lock_window_pos = !theApp.m_main_wnd_data.m_lock_window_pos;
     theApp.SaveConfig();
 }
 
@@ -1673,7 +1861,7 @@ void CTrafficMonitorDlg::OnLockWindowPos()
 void CTrafficMonitorDlg::OnUpdateLockWindowPos(CCmdUI* pCmdUI)
 {
     // TODO: 在此添加命令更新用户界面处理程序代码
-    pCmdUI->SetCheck(theApp.m_cfg_data.m_lock_window_pos);
+    pCmdUI->SetCheck(theApp.m_main_wnd_data.m_lock_window_pos);
 }
 
 
@@ -1689,8 +1877,8 @@ void CTrafficMonitorDlg::OnMove(int x, int y)
         theApp.m_cfg_data.m_position_y = y;
     }
 
-    //确保窗口不会超出屏幕范围
-    CheckWindowPos();
+    ////确保窗口不会超出屏幕范围
+    //CheckWindowPos();
 }
 
 
@@ -1871,9 +2059,9 @@ void CTrafficMonitorDlg::OnUpdateShowCpuMemory(CCmdUI* pCmdUI)
 void CTrafficMonitorDlg::OnMousePenetrate()
 {
     // TODO: 在此添加命令处理程序代码
-    theApp.m_cfg_data.m_mouse_penetrate = !theApp.m_cfg_data.m_mouse_penetrate;
+    theApp.m_main_wnd_data.m_mouse_penetrate = !theApp.m_main_wnd_data.m_mouse_penetrate;
     SetMousePenetrate();
-    if (theApp.m_cfg_data.m_mouse_penetrate && !theApp.m_cfg_data.m_show_notify_icon)   //鼠标穿透时，如果通知图标没有显示，则将它显示出来，否则无法呼出右键菜单
+    if (theApp.m_main_wnd_data.m_mouse_penetrate && !theApp.m_cfg_data.m_show_notify_icon)   //鼠标穿透时，如果通知图标没有显示，则将它显示出来，否则无法呼出右键菜单
     {
         //添加通知栏图标
         AddNotifyIcon();
@@ -1881,7 +2069,7 @@ void CTrafficMonitorDlg::OnMousePenetrate()
     }
 
     //设置鼠标穿透后，弹出消息提示用户如何关闭鼠标穿透
-    if (theApp.m_cfg_data.m_mouse_penetrate && theApp.m_show_mouse_panetrate_tip)
+    if (theApp.m_main_wnd_data.m_mouse_penetrate && theApp.m_show_mouse_panetrate_tip)
     {
         if (MessageBox(CCommon::LoadText(IDS_MOUSE_PENETRATE_TIP_INFO), NULL, MB_ICONINFORMATION | MB_OKCANCEL) == IDCANCEL)        //点击“取消”后不再提示
         {
@@ -1896,7 +2084,7 @@ void CTrafficMonitorDlg::OnMousePenetrate()
 void CTrafficMonitorDlg::OnUpdateMousePenetrate(CCmdUI* pCmdUI)
 {
     // TODO: 在此添加命令更新用户界面处理程序代码
-    pCmdUI->SetCheck(theApp.m_cfg_data.m_mouse_penetrate);
+    pCmdUI->SetCheck(theApp.m_main_wnd_data.m_mouse_penetrate);
 }
 
 
@@ -1916,7 +2104,7 @@ void CTrafficMonitorDlg::OnShowTaskBarWnd()
     {
         theApp.m_cfg_data.m_show_task_bar_wnd = false;
         //关闭任务栏窗口后，如果没有显示通知区图标，且没有显示主窗口或设置了鼠标穿透，则将通知区图标显示出来
-        if (!theApp.m_cfg_data.m_show_notify_icon && (theApp.m_cfg_data.m_hide_main_window || theApp.m_cfg_data.m_mouse_penetrate))
+        if (!theApp.m_cfg_data.m_show_notify_icon && (theApp.m_cfg_data.m_hide_main_window || theApp.m_main_wnd_data.m_mouse_penetrate))
         {
             AddNotifyIcon();
             theApp.m_cfg_data.m_show_notify_icon = true;
@@ -2143,7 +2331,7 @@ void CTrafficMonitorDlg::OnChangeNotifyIcon()
 void CTrafficMonitorDlg::OnAlowOutOfBorder()
 {
     // TODO: 在此添加命令处理程序代码
-    theApp.m_cfg_data.m_alow_out_of_border = !theApp.m_cfg_data.m_alow_out_of_border;
+    theApp.m_main_wnd_data.m_alow_out_of_border = !theApp.m_main_wnd_data.m_alow_out_of_border;
     CheckWindowPos();
 }
 
@@ -2151,7 +2339,7 @@ void CTrafficMonitorDlg::OnAlowOutOfBorder()
 void CTrafficMonitorDlg::OnUpdateAlowOutOfBorder(CCmdUI* pCmdUI)
 {
     // TODO: 在此添加命令更新用户界面处理程序代码
-    pCmdUI->SetCheck(theApp.m_cfg_data.m_alow_out_of_border);
+    pCmdUI->SetCheck(theApp.m_main_wnd_data.m_alow_out_of_border);
 }
 
 
@@ -2306,7 +2494,7 @@ afx_msg LRESULT CTrafficMonitorDlg::OnTaskbarWndClosed(WPARAM wParam, LPARAM lPa
 {
     theApp.m_cfg_data.m_show_task_bar_wnd = false;
     //关闭任务栏窗口后，如果没有显示通知区图标，且没有显示主窗口或设置了鼠标穿透，则将通知区图标显示出来
-    if (!theApp.m_cfg_data.m_show_notify_icon && (theApp.m_cfg_data.m_hide_main_window || theApp.m_cfg_data.m_mouse_penetrate))
+    if (!theApp.m_cfg_data.m_show_notify_icon && (theApp.m_cfg_data.m_hide_main_window || theApp.m_main_wnd_data.m_mouse_penetrate))
     {
         AddNotifyIcon();
         theApp.m_cfg_data.m_show_notify_icon = true;
@@ -2337,4 +2525,21 @@ afx_msg LRESULT CTrafficMonitorDlg::OnMonitorInfoUpdated(WPARAM wParam, LPARAM l
     if (IsTaskbarWndValid())
         m_tBarDlg->UpdateToolTips();
     return 0;
+}
+
+
+afx_msg LRESULT CTrafficMonitorDlg::OnDisplaychange(WPARAM wParam, LPARAM lParam)
+{
+    GetScreenSize();
+    CheckWindowPos(true);
+    return 0;
+}
+
+
+void CTrafficMonitorDlg::OnExitSizeMove()
+{
+    // TODO: 在此添加消息处理程序代码和/或调用默认值
+    CheckWindowPos();
+
+    CDialog::OnExitSizeMove();
 }

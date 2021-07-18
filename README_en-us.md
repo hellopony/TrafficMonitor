@@ -5,13 +5,17 @@
 [![GitHub release](https://img.shields.io/github/release/zhongyang219/TrafficMonitor.svg?style=flat-square)](https://github.com/zhongyang219/TrafficMonitor/releases/latest)
 
 # TrafficMonitor Introduction
-TrafficMonitor is a network monitoring suspension window software in Windows platform. It can display the current network speed, CPU and memory usage. It also support the functions of display in the taskbar, change skin and historical traffic statistics. <br>
-# Related Links<br>
+TrafficMonitor is a network monitoring suspension window software in Windows platform. It can display the current network speed, CPU and memory usage. It also support the functions of display in the taskbar, change skin and historical traffic statistics. 
+
+# Related Links
+
 Please [click here](https://github.com/zhongyang219/TrafficMonitor/releases/latest) to download the latest version of TrafficMonitor.<br>
 Alternate link: Download from [Baidu Netdisk](https://pan.baidu.com/s/15PMt7s-ASpyDwtS__4cUhg). Access code: `ou0m`<br>
 If you encounter any problems, please [click here](https://github.com/zhongyang219/TrafficMonitor/blob/master/Help_en-us.md).<br>
 
 You can also [click here](https://github.com/zhongyang219/TrafficMonitor/actions?query=workflow:"Release+CI") to download the pre-release build version of TrafficMonitor.
+
+Starting from version 1.80,  the temperature monitoring function has been added. If you do not need the temperature monitoring function and you encounter problems with the version 1.80 or higher, it is recommended to download the version without temperature monitoring. (Find the version that contains `without_temperature` in the file name on the Release page.)
 
 # Main Features
 * Displays the current network transfer speed, CPU and memory usage.<br>
@@ -39,5 +43,18 @@ Change Skins:<br>
 Options:<br>
 <img src="./Screenshots/en_us/option.jpg" style="zoom:80%;" /><br>
 
+# About the hardware monitoring function
+
+Starting from version 1.80,  the hardware monitoring functions (including temperature monitoring and graphics card usage monitoring) has been added in TrafficMonitor. It relied on the  open source library [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor). If you encounter problems when using the temperature monitoring function, please [click here](https://github.com/zhongyang219/TrafficMonitor/blob/master/Help_en-us.md#13-about-the-temperature-monitoring-of-trafficmonitor). 
+
+It should be noted that the temperature monitoring function is turned off by default. If you want to use the temperature monitoring function of TrafficMonitor, please go to ["Option Settings"-"General Settings"-"Hardware Monitoring"](https://github.com/zhongyang219/TrafficMonitor/wiki/选项设置#硬件监控) to enable it.
+
+**Note: The hardware monitoring function (including temperature monitoring and GPU usage monitoring) may have some problems, which may cause more CPU and memory usage. According to feedback from some users, turning on the temperature function will cause problems such as program crashes and system crashes. Please decide to turn on the hardware monitoring function after you are aware of the above risks. Otherwise, please do not use the hardware monitoring function.**
+
 # Update log
+
 **[Click here to view the update log.](./UpdateLog/update_log_en-us.md)**
+
+# About the repository of this project on Gitee
+
+The repository on Gitee is only used as a backup of the GitHub repository. All my code submissions are made on GitHub. The Gitee repository will synchronize the updates of the GitHub repository from time to time. Therefore, the repository on Gitee does not accept any pull requests. If you want to contribute your code to TrafficMonitor, please submit your pull request on GitHub.

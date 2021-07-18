@@ -7,18 +7,41 @@
 
 namespace OpenHardwareMonitorApi
 {
+    static std::wstring error_message;
+
     //将CRL的String类型转换成C++的std::wstring类型
     static std::wstring ClrStringToStdWstring(System::String^ str)
     {
-        const wchar_t* chars = reinterpret_cast<const wchar_t*>((System::Runtime::InteropServices::Marshal::StringToHGlobalUni(str)).ToPointer());
-        return std::wstring(chars);
+        if (str == nullptr)
+        {
+            return std::wstring();
+        }
+        else
+        {
+            const wchar_t* chars = reinterpret_cast<const wchar_t*>((System::Runtime::InteropServices::Marshal::StringToHGlobalUni(str)).ToPointer());
+            return std::wstring(chars);
+        }
     }
 
 
     std::shared_ptr<IOpenHardwareMonitor> CreateInstance()
     {
-        MonitorGlobal::Instance()->Init();
-        return std::make_shared<COpenHardwareMonitor>();
+        std::shared_ptr<IOpenHardwareMonitor> pMonitor;
+        try
+        {
+            MonitorGlobal::Instance()->Init();
+            pMonitor = std::make_shared<COpenHardwareMonitor>();
+        }
+        catch (System::Exception^ e)
+        {
+            error_message = ClrStringToStdWstring(e->Message);
+        }
+        return pMonitor;
+    }
+
+    std::wstring GetErrorMessage()
+    {
+        return error_message;
     }
 
     float COpenHardwareMonitor::CpuTemperature()
@@ -28,7 +51,7 @@ namespace OpenHardwareMonitorApi
 
     float COpenHardwareMonitor::GpuTemperature()
     {
-        if (m_gpu_nvidia_temperature != 0)
+        if (m_gpu_nvidia_temperature >= 0)
             return m_gpu_nvidia_temperature;
         else
             return m_gpu_ati_temperature;
@@ -50,6 +73,36 @@ namespace OpenHardwareMonitorApi
             return m_gpu_nvidia_usage;
         else
             return m_gpu_ati_usage;
+    }
+
+    const std::map<std::wstring, float>& COpenHardwareMonitor::AllHDDTemperature()
+    {
+        return m_all_hdd_temperature;
+    }
+
+    const std::map<std::wstring, float>& COpenHardwareMonitor::AllCpuTemperature()
+    {
+        return m_all_cpu_temperature;
+    }
+
+    void COpenHardwareMonitor::SetCpuEnable(bool enable)
+    {
+        MonitorGlobal::Instance()->computer->IsCpuEnabled = enable;
+    }
+
+    void COpenHardwareMonitor::SetGpuEnable(bool enable)
+    {
+        MonitorGlobal::Instance()->computer->IsGpuEnabled = enable;
+    }
+
+    void COpenHardwareMonitor::SetHddEnable(bool enable)
+    {
+        MonitorGlobal::Instance()->computer->IsStorageEnabled = enable;
+    }
+
+    void COpenHardwareMonitor::SetMainboardEnable(bool enable)
+    {
+        MonitorGlobal::Instance()->computer->IsMotherboardEnabled = enable;
     }
 
     bool COpenHardwareMonitor::GetHardwareTemperature(IHardware^ hardware, float& temperature)
@@ -83,7 +136,32 @@ namespace OpenHardwareMonitorApi
         return false;
     }
 
-    bool COpenHardwareMonitor::GetGpuUsage(IHardware ^ hardware, float & gpu_usage)
+    bool COpenHardwareMonitor::GetCpuTemperature(IHardware^ hardware, float& temperature)
+    {
+        temperature = -1;
+        m_all_cpu_temperature.clear();
+        for (int i = 0; i < hardware->Sensors->Length; i++)
+        {
+            //找到温度传感器
+            if (hardware->Sensors[i]->SensorType == SensorType::Temperature)
+            {
+                String^ name = hardware->Sensors[i]->Name;
+                //保存每个CPU传感器的温度
+                m_all_cpu_temperature[ClrStringToStdWstring(name)] = Convert::ToDouble(hardware->Sensors[i]->Value);
+            }
+        }
+        //计算平均温度
+        if (!m_all_cpu_temperature.empty())
+        {
+            float sum{};
+            for (const auto& item : m_all_cpu_temperature)
+                sum += item.second;
+            temperature = sum / m_all_cpu_temperature.size();
+        }
+        return temperature > 0;
+    }
+
+    bool COpenHardwareMonitor::GetGpuUsage(IHardware^ hardware, float& gpu_usage)
     {
         for (int i = 0; i < hardware->Sensors->Length; i++)
         {
@@ -106,6 +184,11 @@ namespace OpenHardwareMonitorApi
         ResetAllValues();
     }
 
+    COpenHardwareMonitor::~COpenHardwareMonitor()
+    {
+        MonitorGlobal::Instance()->UnInit();
+    }
+
     void COpenHardwareMonitor::ResetAllValues()
     {
         m_cpu_temperature = -1;
@@ -115,6 +198,7 @@ namespace OpenHardwareMonitorApi
         m_main_board_temperature = -1;
         m_gpu_nvidia_usage = -1;
         m_gpu_ati_usage = -1;
+        m_all_hdd_temperature.clear();
     }
 
     void COpenHardwareMonitor::GetHardwareInfo()
@@ -122,17 +206,14 @@ namespace OpenHardwareMonitorApi
         ResetAllValues();
         auto computer = MonitorGlobal::Instance()->computer;
         computer->Accept(MonitorGlobal::Instance()->updateVisitor);
-        //wchar_t buff[256];
-        //swprintf(buff, L"%d\n", computer->Hardware->Length);
-        //System::Diagnostics::Debug::WriteLine(gcnew System::String(buff));
-        for (int i = 0; i < computer->Hardware->Length; i++)
+        for (int i = 0; i < computer->Hardware->Count; i++)
         {
             //查找硬件类型
             switch (computer->Hardware[i]->HardwareType)
             {
-            case HardwareType::CPU:
+            case HardwareType::Cpu:
                 if (m_cpu_temperature < 0)
-                    GetHardwareTemperature(computer->Hardware[i], m_cpu_temperature);
+                    GetCpuTemperature(computer->Hardware[i], m_cpu_temperature);
                 break;
             case HardwareType::GpuNvidia:
                 if (m_gpu_nvidia_temperature < 0)
@@ -140,17 +221,22 @@ namespace OpenHardwareMonitorApi
                 if (m_gpu_nvidia_usage < 0)
                     GetGpuUsage(computer->Hardware[i], m_gpu_nvidia_usage);
                 break;
-            case HardwareType::GpuAti:
+            case HardwareType::GpuAmd:
                 if (m_gpu_ati_temperature < 0)
                     GetHardwareTemperature(computer->Hardware[i], m_gpu_ati_temperature);
                 if (m_gpu_ati_usage < 0)
                     GetGpuUsage(computer->Hardware[i], m_gpu_ati_usage);
                 break;
-            case HardwareType::HDD:
+            case HardwareType::Storage:
+            {
+                float cur_hdd_temperature = -1;
+                GetHardwareTemperature(computer->Hardware[i], cur_hdd_temperature);
+                m_all_hdd_temperature[ClrStringToStdWstring(computer->Hardware[i]->Name)] = cur_hdd_temperature;
                 if (m_hdd_temperature < 0)
-                    GetHardwareTemperature(computer->Hardware[i], m_hdd_temperature);
+                    m_hdd_temperature = cur_hdd_temperature;
+            }
                 break;
-            case HardwareType::Mainboard:
+            case HardwareType::Motherboard:
                 if (m_main_board_temperature < 0)
                     GetHardwareTemperature(computer->Hardware[i], m_main_board_temperature);
                 break;
@@ -175,12 +261,12 @@ namespace OpenHardwareMonitorApi
     {
         updateVisitor = gcnew UpdateVisitor();
         computer = gcnew Computer();
-        computer->CPUEnabled = true;
-        computer->GPUEnabled = true;
-        computer->HDDEnabled = true;
-        computer->MainboardEnabled = true;
         computer->Open();
-        computer->Accept(updateVisitor);
+    }
+
+    void MonitorGlobal::UnInit()
+    {
+        computer->Close();
     }
 
 }

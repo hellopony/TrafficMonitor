@@ -211,7 +211,7 @@ CString CCommon::TemperatureToString(float temperature, const PublicSettingData&
         str_val.Format(_T("%d"), static_cast<int>(temperature));
     if (cfg.separate_value_unit_with_space)
         str_val += _T(' ');
-    str_val += _T("℃");
+    str_val += _T("°C");
     return str_val;
 }
 
@@ -619,8 +619,11 @@ bool CCommon::GetURL(const wstring& url, wstring& result, bool utf8, const wstri
     catch (CInternetException* e)
     {
         //写入错误日志
-        CString info = CCommon::LoadTextFormat(IDS_GET_URL_ERROR_LOG_INFO, { url, static_cast<size_t>(e->m_dwError) });
-        CCommon::WriteLog(info, theApp.m_log_path.c_str());
+        if (theApp.m_debug_log)
+        {
+            CString info = CCommon::LoadTextFormat(IDS_GET_URL_ERROR_LOG_INFO, { url, static_cast<size_t>(e->m_dwError) });
+            CCommon::WriteLog(info, theApp.m_log_path.c_str());
+        }
         if (pfile != nullptr)
         {
             pfile->Close();

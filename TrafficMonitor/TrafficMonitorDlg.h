@@ -45,20 +45,46 @@ public:
 protected:
     HICON m_hIcon;
     NOTIFYICONDATA m_ntIcon;    //通知区域图标
-    CTaskBarDlg* m_tBarDlg;     //任务栏窗口的指针
+    CTaskBarDlg* m_tBarDlg{};     //任务栏窗口的指针
 
     vector<NetWorkConection> m_connections; //保存获取到的要显示到“选择网卡”菜单项中的所有网络连接
-    MIB_IF_TABLE2* m_pIfTable;
+    MIB_IFTABLE* m_pIfTable;
+    DWORD m_dwSize{};	//m_pIfTable的大小
     int m_connection_selected{ 0 }; //要显示流量的连接的序号
-    unsigned __int64 m_in_bytes;        //当前已接收的字节数
-    unsigned __int64 m_out_bytes;   //当前已发送的字节数
+    unsigned __int64 m_in_bytes{};        //当前已接收的字节数
+    unsigned __int64 m_out_bytes{};   //当前已发送的字节数
     unsigned __int64 m_last_in_bytes{}; //上次已接收的字节数
     unsigned __int64 m_last_out_bytes{};    //上次已发送的字节数
 
     CCPUUsage m_cpu_usage;
 
     bool m_first_start{ true };     //初始时为true，在定时器第一次启动后置为flase
-    CRect m_screen_rect;        //屏幕的范围（不包含任务栏）
+
+    // https://www.jianshu.com/p/9d4b68cdbd99
+    struct Monitors
+    {
+        std::vector<MONITORINFO> monitorinfos;
+
+        static BOOL CALLBACK MonitorEnum(HMONITOR hMon, HDC hdc, LPRECT lprcMonitor, LPARAM pData)
+        {
+            MONITORINFO iMonitor;
+            iMonitor.cbSize = sizeof(MONITORINFO);
+            GetMonitorInfo(hMon, &iMonitor);
+
+            Monitors* pThis = reinterpret_cast<Monitors*>(pData);
+            pThis->monitorinfos.push_back(iMonitor);
+            return TRUE;
+        }
+
+        Monitors()
+        {
+            EnumDisplayMonitors(0, 0, MonitorEnum, (LPARAM)this);
+        }
+    };
+
+    //CRect m_screen_rect;        //屏幕的范围（不包含任务栏）
+    vector<CRect> m_screen_rects;       //所有屏幕的范围（不包含任务栏）
+    vector<CRect> m_last_screen_rects;       //上一次所有屏幕的范围（不包含任务栏）
     CSize m_screen_size;        //屏幕的大小（包含任务栏）
     CSkinFile m_skin;
 
@@ -87,21 +113,28 @@ protected:
 
     HDC m_desktop_dc;
 
-    wstring m_connection_name_preferd{ theApp.m_cfg_data.m_connection_name };          //保存用户手动选择的网络连接名称
+    string m_connection_name_preferd{ theApp.m_cfg_data.m_connection_name };          //保存用户手动选择的网络连接名称
 
-    CHighResolutionTimer m_timer;           // 采用多媒体定时器(也防止了界面阻塞出现的卡顿现象)
-    static void TimerCallbackTemp(DWORD_PTR dwUser);
+    //CHighResolutionTimer m_timer;           // 采用多媒体定时器(也防止了界面阻塞出现的卡顿现象)
+    CCriticalSection m_critical;
+    static UINT MonitorThreadCallback(LPVOID dwUser);
+    bool m_is_monitor_thread_runing{ false };
 
     CString GetMouseTipsInfo();     //获取鼠标提示信息
     void SetTransparency();         //根据m_transparency的值设置窗口透明度
     void SetTransparency(int transparency);
     void SetAlwaysOnTop();          //根据m_always_on_top的值设置窗口置顶
     void SetMousePenetrate();       //根据m_mouse_penetrate的值设置是否鼠标穿透
-    void CheckWindowPos();          //测试窗口的位置，如窗口的位置在屏幕外，则移动窗口使其全部都在屏幕内，并返回新位置
+    POINT CalculateWindowMoveOffset(CRect rect, bool screen_changed);  //计算当窗口处于屏幕区域外时，移动到屏幕区域需要移动的位置
+    void CheckWindowPos(bool screen_changed = false);          //测试窗口的位置，如窗口的位置在屏幕外，则移动窗口使其全部都在屏幕内，并返回新位置
     void GetScreenSize();           //获取屏幕的大小
 
-    void AutoSelect();      //自动选择连接
+    void AutoSelect();
+    //void UpdateConnections();
+    //自动选择连接
     void IniConnection();   //初始化连接
+
+    MIB_IFROW GetConnectIfTable(int connection_index);    //获取当前选择的网络连接的MIB_IFROW对象。connection_index为m_connections中的索引
 
     void IniConnectionMenu(CMenu* pMenu);   //初始化“选择网络连接”菜单
     void IniTaskBarConnectionMenu();        //初始化任务栏窗口的“选择网络连接”菜单
@@ -133,6 +166,7 @@ protected:
 
 public:
     //void ApplySettings();
+    bool IsTemperatureNeeded() const;       //判断是否需要显示温度信息
 
 protected:
     // 生成的消息映射函数
@@ -216,4 +250,7 @@ public:
     afx_msg void OnShowGpuUsage();
 protected:
     afx_msg LRESULT OnMonitorInfoUpdated(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnDisplaychange(WPARAM wParam, LPARAM lParam);
+public:
+    afx_msg void OnExitSizeMove();
 };

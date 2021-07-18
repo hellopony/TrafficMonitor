@@ -5,6 +5,7 @@
 #include "TrafficMonitor.h"
 #include "TaskBarDlg.h"
 #include "afxdialogex.h"
+#include "TrafficMonitorDlg.h"
 
 
 // CTaskBarDlg 对话框
@@ -70,10 +71,13 @@ void CTaskBarDlg::ShowInfo(CDC* pDC)
     int index = 0;
     CRect item_rect{};
     int item_count = CCommon::CountOneBits(theApp.m_cfg_data.m_tbar_display_item);  //要显示的项目数量
-    auto last_iter = m_item_widths.begin();
-    for (auto iter = m_item_widths.begin(); iter != m_item_widths.end(); ++iter)
+    auto item_order{ theApp.m_taskbar_data.item_order.GetAllDisplayItemsWithOrder() };
+    auto last_iter = item_order.begin();
+    for (auto iter = item_order.begin(); iter != item_order.end(); ++iter)
     {
-        if (theApp.m_cfg_data.m_tbar_display_item & iter->first)    //如果此项需要显示出来才绘制
+        auto item_width = m_item_widths[*iter];
+        auto last_item_width = m_item_widths[*last_iter];
+        if (theApp.m_cfg_data.m_tbar_display_item & *iter)    //如果此项需要显示出来才绘制
         {
             //任务栏在桌面顶部或底部
             if (IsTasksbarOnTopOrBottom())
@@ -82,9 +86,9 @@ void CTaskBarDlg::ShowInfo(CDC* pDC)
                 {
                     if (index > 0)
                         item_rect.MoveToX(item_rect.right + theApp.DPI(4));
-                    item_rect.right = item_rect.left + iter->second.TotalWidth();
+                    item_rect.right = item_rect.left + item_width.TotalWidth();
                     item_rect.bottom = item_rect.top + m_window_height;
-                    DrawDisplayItem(draw, iter->first, item_rect, iter->second.label_width);
+                    DrawDisplayItem(draw, *iter, item_rect, item_width.label_width);
                 }
                 else        //非水平排列时，每两个一组显示
                 {
@@ -99,20 +103,20 @@ void CTaskBarDlg::ShowInfo(CDC* pDC)
                         //确定窗口大小
                         item_rect_up.bottom = item_rect.top - 1;
                         item_rect.bottom = m_window_height;
-                        int width = max(iter->second.TotalWidth(), last_iter->second.TotalWidth());
+                        int width = max(item_width.TotalWidth(), last_item_width.TotalWidth());
                         item_rect.right = item_rect.left + width;
                         item_rect_up.right = item_rect_up.left + width;
                         //绘制信息
-                        DrawDisplayItem(draw, last_iter->first, item_rect_up, last_iter->second.label_width);
-                        DrawDisplayItem(draw, iter->first, item_rect, iter->second.label_width);
+                        DrawDisplayItem(draw, *last_iter, item_rect_up, last_item_width.label_width);
+                        DrawDisplayItem(draw, *iter, item_rect, item_width.label_width);
                     }
                     //要绘制的项目为奇数时绘制最后一个
                     else if (item_count % 2 == 1 && index == item_count - 1)
                     {
                         item_rect.MoveToXY(item_rect.right + theApp.DPI(4), 0);
-                        item_rect.bottom = TASKBAR_WND_HEIGHT / 2;
-                        item_rect.right = item_rect.left + iter->second.TotalWidth();
-                        DrawDisplayItem(draw, iter->first, item_rect, iter->second.label_width);
+                        item_rect.bottom = TASKBAR_WND_HEIGHT;
+                        item_rect.right = item_rect.left + item_width.MaxWidth();
+                        DrawDisplayItem(draw, *iter, item_rect, item_width.label_width, true);
                     }
                 }
             }
@@ -123,7 +127,7 @@ void CTaskBarDlg::ShowInfo(CDC* pDC)
                     item_rect.MoveToXY(0, item_rect.bottom + theApp.DPI(2));
                 item_rect.bottom = item_rect.top + TASKBAR_WND_HEIGHT / 2;
                 item_rect.right = item_rect.left + min(m_window_width, m_rcMin.Width() - theApp.DPI(2));
-                DrawDisplayItem(draw, iter->first, item_rect, iter->second.label_width);
+                DrawDisplayItem(draw, *iter, item_rect, item_width.label_width);
             }
 
             index++;
@@ -137,7 +141,7 @@ void CTaskBarDlg::ShowInfo(CDC* pDC)
     MemDC.DeleteDC();
 }
 
-void CTaskBarDlg::DrawDisplayItem(CDrawCommon& drawer, DisplayItem type, CRect rect, int label_width)
+void CTaskBarDlg::DrawDisplayItem(CDrawCommon& drawer, DisplayItem type, CRect rect, int label_width, bool vertical)
 {
     m_item_display_width[type] = rect.Width();
     //设置要绘制的文本颜色
@@ -156,9 +160,17 @@ void CTaskBarDlg::DrawDisplayItem(CDrawCommon& drawer, DisplayItem type, CRect r
 
     //设置标签和数值的矩形区域
     CRect rect_label{ rect };
-    rect_label.right = rect_label.left + label_width;
     CRect rect_value{ rect };
-    rect_value.left = rect_label.right;
+    if (!vertical)
+    {
+        rect_label.right = rect_label.left + label_width;
+        rect_value.left = rect_label.right;
+    }
+    else if (label_width != 0)
+    {
+        rect_label.bottom = rect_label.top + (rect_label.Height() / 2);
+        rect_value.top = rect_label.bottom;
+    }
 
     // 绘制状态条
     if (type == TDI_CPU || type == TDI_MEMORY || type == TDI_GPU_USAGE || type == TDI_CPU_TEMP || type == TDI_GPU_TEMP || type == TDI_HDD_TEMP || type == TDI_MAIN_BOARD_TEMP)
@@ -227,19 +239,24 @@ void CTaskBarDlg::DrawDisplayItem(CDrawCommon& drawer, DisplayItem type, CRect r
     }
 
     //绘制标签
-    wstring str_label = theApp.m_taskbar_data.disp_str.Get(type);
-    if (theApp.m_taskbar_data.swap_up_down)
+    if (label_width > 0)
     {
-        if (type == TDI_UP)
-            str_label = theApp.m_taskbar_data.disp_str.Get(TDI_DOWN);
-        else if (type == TDI_DOWN)
-            str_label = theApp.m_taskbar_data.disp_str.Get(TDI_UP);
+        wstring str_label = theApp.m_taskbar_data.disp_str.Get(type);
+        if (theApp.m_taskbar_data.swap_up_down)
+        {
+            if (type == TDI_UP)
+                str_label = theApp.m_taskbar_data.disp_str.Get(TDI_DOWN);
+            else if (type == TDI_DOWN)
+                str_label = theApp.m_taskbar_data.disp_str.Get(TDI_UP);
+        }
+        drawer.DrawWindowText(rect_label, str_label.c_str(), label_color, (vertical ? Alignment::CENTER : Alignment::LEFT));
     }
-    drawer.DrawWindowText(rect, str_label.c_str(), label_color);
 
     //绘制数值
     CString str_value;
     Alignment value_alignment{ theApp.m_taskbar_data.value_right_align ? Alignment::RIGHT : Alignment::LEFT };      //数值的对齐方式
+    if (vertical)
+        value_alignment = Alignment::CENTER;
     //绘制上传或下载速度
     if (type == TDI_UP || type == TDI_DOWN)
     {
@@ -323,6 +340,14 @@ void CTaskBarDlg::DrawDisplayItem(CDrawCommon& drawer, DisplayItem type, CRect r
     drawer.DrawWindowText(rect_value, str_value, text_color, value_alignment);
 }
 
+void CTaskBarDlg::MoveWindow(CRect rect)
+{
+    if (IsWindow(GetSafeHwnd()))
+    {
+        ::MoveWindow(GetSafeHwnd(), rect.left, rect.top, rect.Width(), rect.Height(), TRUE);
+    }
+}
+
 void CTaskBarDlg::TryDrawStatusBar(CDrawCommon& drawer, const CRect& rect_bar, int usage_percent)
 {
     if (!theApp.m_taskbar_data.show_status_bar)
@@ -332,7 +357,8 @@ void CTaskBarDlg::TryDrawStatusBar(CDrawCommon& drawer, const CRect& rect_bar, i
 
     CSize fill_size = CSize(rect_bar.Width() * usage_percent / 100, rect_bar.Height());
     CRect rect_fill(rect_bar.TopLeft(), fill_size);
-    drawer.DrawRectOutLine(rect_bar, theApp.m_taskbar_data.status_bar_color, 1, true);
+    if (theApp.m_taskbar_data.show_graph_dashed_box)
+        drawer.DrawRectOutLine(rect_bar, theApp.m_taskbar_data.status_bar_color, 1, true);
     drawer.FillRect(rect_fill, theApp.m_taskbar_data.status_bar_color);
 }
 
@@ -340,9 +366,12 @@ bool CTaskBarDlg::AdjustWindowPos()
 {
     if (this->GetSafeHwnd() == NULL || !IsWindow(this->GetSafeHwnd()))
         return false;
-    CRect rcMin, rcBar;
+    CRect rcMin, rcBar, rcBarSnap;
     ::GetWindowRect(m_hMin, rcMin); //获得最小化窗口的区域
     ::GetWindowRect(m_hBar, rcBar); //获得二级容器的区域
+    if (theApp.m_win_version.IsWindows11OrLater()) {
+        ::GetWindowRect(m_hBarSnap, rcBarSnap); //获得二级容器(Win11)的区域
+    }
     static bool last_taskbar_on_top_or_bottom;
     CheckTaskbarOnTopOrBottom();
     if (m_taskbar_on_top_or_bottom != last_taskbar_on_top_or_bottom)
@@ -363,11 +392,29 @@ bool CTaskBarDlg::AdjustWindowPos()
             m_min_bar_width = m_rcMin.Width() - m_rect.Width(); //保存最小化窗口宽度
             if (!theApp.m_taskbar_data.tbar_wnd_on_left)
             {
+                if (theApp.m_win_version.IsWindows11OrLater()) {  //Win11兼容
+                    if (!theApp.m_taskbar_data.tbar_wnd_snap) {
+                        m_left_space = rcBar.right;   //显示在最右侧
+                    }
+                    else
+                    {
+                        m_left_space = rcBarSnap.left - theApp.DPI(90);   //贴靠在任务栏左侧（向左偏移90，防止挡住Win徽标）
+                    }
+                }
                 ::MoveWindow(m_hMin, m_left_space, 0, m_rcMin.Width() - m_rect.Width(), m_rcMin.Height(), TRUE);    //设置最小化窗口的位置
                 m_rect.MoveToX(m_left_space + m_rcMin.Width() - m_rect.Width() + 2);
             }
             else
             {
+                if (theApp.m_win_version.IsWindows11OrLater()) {  //Win11兼容
+                    if (!theApp.m_taskbar_data.tbar_wnd_snap) {
+                        m_left_space = 0;   //显示在最左侧
+                    }
+                    else
+                    {
+                        m_left_space = rcBarSnap.right;   //贴靠在任务栏右侧
+                    }
+                }
                 ::MoveWindow(m_hMin, m_left_space + m_rect.Width(), 0, m_rcMin.Width() - m_rect.Width(), m_rcMin.Height(), TRUE);
                 m_rect.MoveToX(m_left_space);
             }
@@ -480,7 +527,7 @@ CString CTaskBarDlg::GetMouseTipsInfo()
     }
     if (!IsShowCpu())
     {
-        temp.Format(_T("\r\n%s: %d%%"), CCommon::LoadText(IDS_CPU_USAGE), theApp.m_cpu_usage);
+        temp.Format(_T("\r\n%s: %d %%"), CCommon::LoadText(IDS_CPU_USAGE), theApp.m_cpu_usage);
         tip_info += temp;
     }
     if (!IsShowCpuMemory())
@@ -491,7 +538,7 @@ CString CTaskBarDlg::GetMouseTipsInfo()
     }
     if (!IsShowMemory())
     {
-        temp.Format(_T("\r\n%s: %s/%s (%d%%)"), CCommon::LoadText(IDS_MEMORY_USAGE),
+        temp.Format(_T("\r\n%s: %s/%s (%d %%)"), CCommon::LoadText(IDS_MEMORY_USAGE),
             CCommon::KBytesToString(theApp.m_used_memory),
             CCommon::KBytesToString(theApp.m_total_memory), theApp.m_memory_usage);
         tip_info += temp;
@@ -504,30 +551,34 @@ CString CTaskBarDlg::GetMouseTipsInfo()
         tip_info += temp;
     }
 #ifndef WITHOUT_TEMPERATURE
-    if (!IsShowGpu() && theApp.m_gpu_usage >= 0)
+    CTrafficMonitorDlg* pMainWnd = dynamic_cast<CTrafficMonitorDlg*>(theApp.m_pMainWnd);
+    if (pMainWnd->IsTemperatureNeeded())
     {
-        temp.Format(_T("\r\n%s: %d%%"), CCommon::LoadText(IDS_GPU_USAGE), theApp.m_gpu_usage);
-        tip_info += temp;
-    }
-    if (!IsShowCpuTemperature() && theApp.m_cpu_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_CPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_cpu_temperature, theApp.m_taskbar_data));
-        tip_info += temp;
-    }
-    if (!IsShowGpuTemperature() && theApp.m_gpu_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_GPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_gpu_temperature, theApp.m_taskbar_data));
-        tip_info += temp;
-    }
-    if (!IsShowHddTemperature() && theApp.m_hdd_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_HDD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_hdd_temperature, theApp.m_taskbar_data));
-        tip_info += temp;
-    }
-    if (!IsShowMainboardTemperature() && theApp.m_main_board_temperature > 0)
-    {
-        temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_MAINBOARD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_main_board_temperature, theApp.m_taskbar_data));
-        tip_info += temp;
+        if (!IsShowGpu() && theApp.m_gpu_usage >= 0)
+        {
+            temp.Format(_T("\r\n%s: %d %%"), CCommon::LoadText(IDS_GPU_USAGE), theApp.m_gpu_usage);
+            tip_info += temp;
+        }
+        if (!IsShowCpuTemperature() && theApp.m_cpu_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_CPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_cpu_temperature, theApp.m_taskbar_data));
+            tip_info += temp;
+        }
+        if (!IsShowGpuTemperature() && theApp.m_gpu_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_GPU_TEMPERATURE), CCommon::TemperatureToString(theApp.m_gpu_temperature, theApp.m_taskbar_data));
+            tip_info += temp;
+        }
+        if (!IsShowHddTemperature() && theApp.m_hdd_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_HDD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_hdd_temperature, theApp.m_taskbar_data));
+            tip_info += temp;
+        }
+        if (!IsShowMainboardTemperature() && theApp.m_main_board_temperature > 0)
+        {
+            temp.Format(_T("\r\n%s: %s"), CCommon::LoadText(IDS_MAINBOARD_TEMPERATURE), CCommon::TemperatureToString(theApp.m_main_board_temperature, theApp.m_taskbar_data));
+            tip_info += temp;
+        }
     }
 #endif
     return tip_info;
@@ -627,9 +678,9 @@ void CTaskBarDlg::CalculateWindowSize()
 
     //计算温度显示的宽度
     if (theApp.m_taskbar_data.separate_value_unit_with_space)
-        str = _T("99 ℃");
+        str = _T("99 °C");
     else
-        str = _T("99℃");
+        str = _T("99°C");
     value_width = m_pDC->GetTextExtent(str).cx;
     value_width += theApp.DPI(2);
     m_item_widths[TDI_CPU_TEMP].value_width = value_width;
@@ -641,12 +692,14 @@ void CTaskBarDlg::CalculateWindowSize()
     if (IsTasksbarOnTopOrBottom())  //任务栏在桌面的顶部或底部时
     {
         m_window_width = 0;
+        auto item_order{ theApp.m_taskbar_data.item_order.GetAllDisplayItemsWithOrder() };
         if (theApp.m_taskbar_data.horizontal_arrange)   //水平排列时
         {
-            for (auto iter = m_item_widths.begin(); iter != m_item_widths.end(); ++iter)
+            for (auto iter = item_order.begin(); iter != item_order.end(); ++iter)
             {
-                if (theApp.m_cfg_data.m_tbar_display_item & iter->first)
-                    m_window_width += iter->second.TotalWidth();
+                auto item_width = m_item_widths[*iter];
+                if (theApp.m_cfg_data.m_tbar_display_item & *iter)
+                    m_window_width += item_width.TotalWidth();
             }
             m_window_width += theApp.DPI(4) * item_count;   //加上每个标签间的空隙
         }
@@ -654,21 +707,22 @@ void CTaskBarDlg::CalculateWindowSize()
         {
             int index = 0;
             int width0;
-            for (auto iter = m_item_widths.begin(); iter != m_item_widths.end(); ++iter)
+            for (auto iter = item_order.begin(); iter != item_order.end(); ++iter)
             {
-                if (theApp.m_cfg_data.m_tbar_display_item & iter->first)
+                auto item_width = m_item_widths[*iter];
+                if (theApp.m_cfg_data.m_tbar_display_item & *iter)
                 {
                     if (index % 2 == 0)
                     {
-                        width0 = iter->second.TotalWidth();
+                        width0 = item_width.TotalWidth();
                     }
                     else
                     {
-                        m_window_width += max(width0, iter->second.TotalWidth());
+                        m_window_width += max(width0, item_width.TotalWidth());
                     }
                     if (item_count % 2 == 1 && index == item_count - 1) //项目数为奇数时加上最后一个的宽度
                     {
-                        m_window_width += iter->second.TotalWidth();
+                        m_window_width += item_width.MaxWidth();
                     }
 
                     index++;
@@ -716,7 +770,7 @@ void CTaskBarDlg::SetToolTipsTopMost()
 
 void CTaskBarDlg::UpdateToolTips()
 {
-    if (theApp.m_taskbar_data.show_tool_tip)
+    if (theApp.m_taskbar_data.show_tool_tip && IsWindow(m_tool_tips.GetSafeHwnd()))
     {
         CString tip_info;
         tip_info = GetMouseTipsInfo();
@@ -804,6 +858,10 @@ BOOL CTaskBarDlg::OnInitDialog()
 
     ::GetWindowRect(m_hMin, m_rcMin);   //获得最小化窗口的区域
     ::GetWindowRect(m_hBar, m_rcBar);   //获得二级容器的区域
+    if (theApp.m_win_version.IsWindows11OrLater()) {
+        m_hBarSnap = ::FindWindowEx(m_hBar, 0, L"MSTaskSwWClass", NULL);    //寻找二级容器(Win11)的区域
+        m_hMin = ::FindWindowEx(m_hTaskbar, 0, L"MSTaskSwWClass", NULL);    //Hack
+    }
     m_left_space = m_rcMin.left - m_rcBar.left;
     m_top_space = m_rcMin.top - m_rcBar.top;
 
@@ -874,10 +932,12 @@ BOOL CTaskBarDlg::OnInitDialog()
     SetBackgroundColor(theApp.m_taskbar_data.back_color);
 
     //初始化鼠标提示
-    m_tool_tips.Create(this, TTS_ALWAYSTIP);
-    m_tool_tips.SetMaxTipWidth(600);
-    m_tool_tips.AddTool(this, _T(""));
-    SetToolTipsTopMost();       //设置提示信息总是置顶
+    if (IsWindow(GetSafeHwnd()) && m_tool_tips.Create(this, TTS_ALWAYSTIP) && IsWindow(m_tool_tips.GetSafeHwnd()))
+    {
+        m_tool_tips.SetMaxTipWidth(600);
+        m_tool_tips.AddTool(this, _T(""));
+        SetToolTipsTopMost();       //设置提示信息总是置顶
+    }
 
     //SetTimer(TASKBAR_TIMER, 100, NULL);
 
@@ -909,7 +969,9 @@ void CTaskBarDlg::OnRButtonUp(UINT nFlags, CPoint point)
 
     CPoint point1;  //定义一个用于确定光标位置的位置
     GetCursorPos(&point1);  //获取当前光标的位置，以便使得菜单可以跟随光标
-    theApp.m_taskbar_menu.GetSubMenu(0)->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point1.x, point1.y, this); //在指定位置显示弹出菜单
+    CMenu* pMenu = theApp.m_taskbar_menu.GetSubMenu(0);
+    if (pMenu != nullptr)
+        pMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point1.x, point1.y, this); //在指定位置显示弹出菜单
     CDialogEx::OnRButtonUp(nFlags, point1);
 }
 
@@ -941,6 +1003,13 @@ void CTaskBarDlg::OnInitMenu(CMenu* pMenu)
     pMenu->EnableMenuItem(ID_SHOW_GPU_TEMPERATURE, MF_BYCOMMAND | MF_GRAYED);
     pMenu->EnableMenuItem(ID_SHOW_HDD_TEMPERATURE, MF_BYCOMMAND | MF_GRAYED);
     pMenu->EnableMenuItem(ID_SHOW_MAIN_BOARD_TEMPERATURE, MF_BYCOMMAND | MF_GRAYED);
+#else
+    //根据是否关闭硬件监控禁用对应的菜单项
+    pMenu->EnableMenuItem(ID_SHOW_GPU, MF_BYCOMMAND | (theApp.m_general_data.IsHardwareEnable(HI_GPU) ? MF_ENABLED : MF_GRAYED));
+    pMenu->EnableMenuItem(ID_SHOW_CPU_TEMPERATURE, MF_BYCOMMAND | (theApp.m_general_data.IsHardwareEnable(HI_CPU) ? MF_ENABLED : MF_GRAYED));
+    pMenu->EnableMenuItem(ID_SHOW_GPU_TEMPERATURE, MF_BYCOMMAND | (theApp.m_general_data.IsHardwareEnable(HI_GPU) ? MF_ENABLED : MF_GRAYED));
+    pMenu->EnableMenuItem(ID_SHOW_HDD_TEMPERATURE, MF_BYCOMMAND | (theApp.m_general_data.IsHardwareEnable(HI_HDD) ? MF_ENABLED : MF_GRAYED));
+    pMenu->EnableMenuItem(ID_SHOW_MAIN_BOARD_TEMPERATURE, MF_BYCOMMAND | (theApp.m_general_data.IsHardwareEnable(HI_MBD) ? MF_ENABLED : MF_GRAYED));
 #endif
 
     pMenu->EnableMenuItem(ID_SELECT_ALL_CONNECTION, MF_BYCOMMAND | (theApp.m_general_data.show_all_interface ? MF_GRAYED : MF_ENABLED));
@@ -978,7 +1047,7 @@ BOOL CTaskBarDlg::PreTranslateMessage(MSG* pMsg)
     if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_ESCAPE) return TRUE;
     if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN) return TRUE;
 
-    if (theApp.m_taskbar_data.show_tool_tip && m_tool_tips.GetSafeHwnd() && (pMsg->message == WM_LBUTTONDOWN ||
+    if (theApp.m_taskbar_data.show_tool_tip && IsWindow(m_tool_tips.GetSafeHwnd()) && (pMsg->message == WM_LBUTTONDOWN ||
         pMsg->message == WM_LBUTTONUP ||
         pMsg->message == WM_MOUSEMOVE))
     {
@@ -1084,7 +1153,8 @@ void CTaskBarDlg::TryDrawGraph(CDrawCommon& drawer, const CRect& value_rect, Dis
         return;
     }
     CList<int, int>& list = m_map_history_data[item_type];
-    drawer.DrawRectOutLine(value_rect, theApp.m_taskbar_data.status_bar_color, 1, true);
+    if (theApp.m_taskbar_data.show_graph_dashed_box)
+        drawer.DrawRectOutLine(value_rect, theApp.m_taskbar_data.status_bar_color, 1, true);
     POSITION pos = list.GetHeadPosition();
     if (NULL != pos)
     {

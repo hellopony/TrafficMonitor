@@ -39,6 +39,7 @@ protected:
 
 	HWND m_hTaskbar;	//任务栏窗口句柄
 	HWND m_hBar;		//任务栏窗口二级容器的句柄
+	HWND m_hBarSnap;	//任务栏窗口二级容器(Win11)的句柄
 	HWND m_hMin;		//最小化窗口的句柄
 	CRect m_rcBar;		//初始状态时任务栏窗口的矩形区域
 	CRect m_rcMin;		//初始状态时最小化窗口的矩形区域
@@ -56,6 +57,11 @@ protected:
         {
             return label_width + value_width;
         }
+
+		int MaxWidth() const	//最大宽度
+		{
+			return max(label_width, value_width);
+		}
     };
 
     std::map<DisplayItem, ItemWidth> m_item_widths;   //任务栏窗口每个部分的宽度
@@ -87,7 +93,10 @@ protected:
     //  type: 项目的类型
     //  rect: 绘制矩形区域
     //  label_width: 标签区域的宽度
-    void DrawDisplayItem(CDrawCommon& drawer, DisplayItem type, CRect rect, int label_width);
+	//  vertical: 如果为true，则标签和数值上下显示
+    void DrawDisplayItem(CDrawCommon& drawer, DisplayItem type, CRect rect, int label_width, bool vertical = false);
+
+	void MoveWindow(CRect rect);
 
 public:
 	void SetTextFont();

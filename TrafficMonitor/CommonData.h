@@ -1,6 +1,7 @@
 ﻿//此文件包含全局结构体、枚举类型的定义
 #pragma once
 #include "stdafx.h"
+#include "TaskbarItemOrderHelper.h"
 
 //储存某一天的历史流量
 struct HistoryTraffic
@@ -54,22 +55,14 @@ enum class SpeedUnit
 };
 
 
-//显示的项目
-enum DisplayItem
+//硬件监控的项目
+enum HardwareItem
 {
-    TDI_UP = 1 << 0,
-    TDI_DOWN = 1 << 1,
-    TDI_CPU = 1 << 2,
-    TDI_MEMORY = 1 << 3,
-    TDI_GPU_USAGE = 1 << 4,
-    TDI_CPU_TEMP = 1 << 5,
-    TDI_GPU_TEMP = 1 << 6,
-    TDI_HDD_TEMP = 1 << 7,
-    TDI_MAIN_BOARD_TEMP = 1 << 8
+    HI_CPU = 1 << 0,        //CPU
+    HI_GPU = 1 << 1,        //显卡
+    HI_HDD = 1 << 2,        //硬盘
+    HI_MBD = 1 << 3         //主板
 };
-
-//所有显示项目的集合
-const std::set<DisplayItem> AllDisplayItems{ TDI_UP, TDI_DOWN, TDI_CPU, TDI_MEMORY, TDI_GPU_USAGE, TDI_CPU_TEMP, TDI_GPU_TEMP, TDI_HDD_TEMP, TDI_MAIN_BOARD_TEMP };
 
 #define DEF_CH L'\"'        //写入和读取ini文件字符串时，在字符串前后添加的字符
 #define NONE_STR L"@@@"     //用于指定一个无效字符串
@@ -198,11 +191,8 @@ enum class HistoryTrafficViewType
 //选项设置数据
 struct MainConfigData
 {
-    bool m_always_on_top{ false };      //窗口置顶
     int m_transparency{ 100 };          //窗口透明度
-    bool m_lock_window_pos{ false };    //锁定窗口位置
     bool m_show_more_info{ false };     //显示更多信息
-    bool m_mouse_penetrate{ false };    //鼠标穿透
     bool m_show_task_bar_wnd{ false };  //显示任务栏窗口
     bool m_hide_main_window;            //隐藏主窗口
     bool m_show_notify_icon{ true };    //显示通知区域图标
@@ -214,13 +204,12 @@ struct MainConfigData
 
     bool m_auto_select{ false };    //自动选择连接
     bool m_select_all{ false };     //统计所有连接的网速
-    wstring m_connection_name;      //当前选择网络的名称
+    string m_connection_name;      //当前选择网络的名称
 
     wstring m_skin_name;            //选择的皮肤的名称
     int m_dft_notify_icon = 0;      //默认的通知图标(用于区分win10的深色和浅色模式)
     int m_notify_icon_selected{};   //要显示的通知区图标
     bool m_notify_icon_auto_adapt{ false }; //通知区图标是否自动适应Win10深浅色模式
-    bool m_alow_out_of_border{ false };     //是否允许悬浮窗超出屏幕边界
 
     //bool m_show_internet_ip{ false };     //是否在“连接详情”对话框中显示外网IP地址
     bool m_use_log_scale{ false };          //“历史流量统计”对话框中绘制表示历史流量数值的矩形时是否使用对数比例
@@ -262,6 +251,11 @@ struct MainWndSettingData : public PublicSettingData
 {
     std::map<DisplayItem, COLORREF> text_colors{};    //方字的颜色
     bool hide_main_wnd_when_fullscreen;     //有程序全屏运行时隐藏悬浮窗
+    bool m_always_on_top{ false };      //窗口置顶
+    bool m_lock_window_pos{ false };    //锁定窗口位置
+    bool m_mouse_penetrate{ false };    //鼠标穿透
+    bool m_alow_out_of_border{ false };     //是否允许悬浮窗超出屏幕边界
+
 };
 
 //#define TASKBAR_COLOR_NUM 18      //任务栏窗口颜色数量
@@ -289,12 +283,16 @@ struct TaskBarSettingData : public PublicSettingData
     int light_default_style{ -1 };                  //浅色主题时使用的预设方案
     bool auto_set_background_color{ false };        //根据任务栏颜色自动设置背景色
 
+    CTaskbarItemOrderHelper item_order;
+
     bool value_right_align{ false };    //数值是否右对齐
     int digits_number{ 4 };             //数据位数
     bool horizontal_arrange{ true };    //水平排列
     bool show_status_bar{ true };       //显示 CPU/内存的状态条
     bool tbar_wnd_on_left{ false };     //如果为true，则任务栏窗口显示在任务栏的左侧（或上方）
+    bool tbar_wnd_snap{ false };     	//如果为true，则在Win11中任务栏窗口贴靠中间任务栏，否则靠近边缘
     bool cm_graph_type{ false };        //如果为false，默认原样式，柱状图显示占用率，如为true，滚动显示占用率
+    bool show_graph_dashed_box{ true }; //显示占用图虚线框
 };
 
 //选项设置中“常规设置”的数据
@@ -330,6 +328,22 @@ struct GeneralSettingData
 
     bool portable_mode{ false };        //便携模式，如果为true，则程序所有数据都保存到exe所在目录下，否则保存到Appdata\Romaing目录下
     int monitor_time_span{ 1000 };    //监控的时间间隔
+
+    std::wstring hard_disk_name;        //要监控的硬盘名称
+    std::wstring cpu_core_name;         //要监控的CPU核心的名称
+
+    unsigned int hardware_monitor_item{};   //要监控哪些硬件
+    bool IsHardwareEnable(HardwareItem item_type) const
+    {
+        return hardware_monitor_item & item_type;
+    }
+    void SetHardwareEnable(HardwareItem item_type, bool enable)
+    {
+        if (enable)
+            hardware_monitor_item |= item_type;
+        else
+            hardware_monitor_item &= ~item_type;
+    }
 };
 
 //定义监控时间间隔有效的最大值和最小值
@@ -341,4 +355,23 @@ enum class Alignment
     LEFT,
     RIGHT,
     CENTER
+};
+
+//通过构造函数传递一个bool变量的引用，在构造时将其置为true，析构时置为false
+class CFlagLocker
+{
+public:
+    CFlagLocker(bool& flag)
+        : m_flag(flag)
+    {
+        m_flag = true;
+    }
+
+    ~CFlagLocker()
+    {
+        m_flag = false;
+    }
+
+private:
+    bool& m_flag;
 };
