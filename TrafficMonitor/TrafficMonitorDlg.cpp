@@ -913,7 +913,7 @@ BOOL CTrafficMonitorDlg::OnInitDialog()
 
 
     //初始化皮肤
-    CCommon::GetFiles(theApp.m_skin_path.c_str(), m_skins);
+    CCommon::GetFiles((theApp.m_skin_path + L"\\*").c_str(), m_skins);
     if (m_skins.empty())
         m_skins.push_back(L"");
     m_skin_selected = 0;
@@ -1219,6 +1219,13 @@ UINT CTrafficMonitorDlg::MonitorThreadCallback(LPVOID dwUser)
         theApp.m_hdd_usage = -1;
     }
 #endif
+
+    //通知插件获取数据
+    for (const auto& plugin : theApp.m_plugins.GetPlugins())
+    {
+        if (plugin.MPluginInfoRequired != NULL)
+            plugin.MPluginInfoRequired();
+    }
 
     //}
     pThis->m_monitor_time_cnt++;
