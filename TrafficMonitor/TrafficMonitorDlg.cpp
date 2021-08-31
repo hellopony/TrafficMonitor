@@ -111,6 +111,7 @@ BEGIN_MESSAGE_MAP(CTrafficMonitorDlg, CDialog)
     ON_MESSAGE(WM_DISPLAYCHANGE, &CTrafficMonitorDlg::OnDisplaychange)
     ON_WM_EXITSIZEMOVE()
     ON_COMMAND(ID_PLUGIN_MANAGE, &CTrafficMonitorDlg::OnPluginManage)
+    ON_MESSAGE(WM_REOPEN_TASKBAR_WND, &CTrafficMonitorDlg::OnReopenTaksbarWnd)
 END_MESSAGE_MAP()
 
 
@@ -1226,7 +1227,8 @@ UINT CTrafficMonitorDlg::MonitorThreadCallback(LPVOID dwUser)
     //通知插件获取数据
     for (const auto& plugin_info : theApp.m_plugins.GetPlugins())
     {
-        plugin_info.plugin->DataRequired();
+        if (plugin_info.plugin != nullptr)
+            plugin_info.plugin->DataRequired();
     }
 
     //}
@@ -2574,7 +2576,7 @@ afx_msg LRESULT CTrafficMonitorDlg::OnMonitorInfoUpdated(WPARAM wParam, LPARAM l
 }
 
 
-afx_msg LRESULT CTrafficMonitorDlg::OnDisplaychange(WPARAM wParam, LPARAM lParam)
+LRESULT CTrafficMonitorDlg::OnDisplaychange(WPARAM wParam, LPARAM lParam)
 {
     GetScreenSize();
     CheckWindowPos(true);
@@ -2596,4 +2598,11 @@ void CTrafficMonitorDlg::OnPluginManage()
     // TODO: 在此添加命令处理程序代码
     CPluginManagerDlg dlg;
     dlg.DoModal();
+}
+
+LRESULT CTrafficMonitorDlg::OnReopenTaksbarWnd(WPARAM wParam, LPARAM lParam)
+{
+    CloseTaskBarWnd();
+    OpenTaskBarWnd();
+    return 0;
 }

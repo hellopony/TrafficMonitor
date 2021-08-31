@@ -14,6 +14,7 @@ public:
         PS_SUCCEED,             //载入成功
         PS_MUDULE_LOAD_FAILED,  //dll加载失败
         PS_FUNCTION_GET_FAILED, //插件函数获取失败
+        PS_DISABLE              //已禁用
     };
 
     //插件信息
@@ -32,11 +33,14 @@ public:
     };
 
     CPluginManager();
+    ~CPluginManager();
     void LoadPlugins();
 
     const std::vector<IPluginItem*>& GetPluginItems();
     const std::vector<PluginInfo>& GetPlugins();
-    IPluginItem* GetItemByName(const std::wstring& item_name);
+    IPluginItem* GetItemById(const std::wstring& item_id);
+    IPluginItem* GetItemByIndex(int index);
+    int GetItemIndex(IPluginItem* item) const;
 
 private:
     std::vector<IPluginItem*> m_plugins;

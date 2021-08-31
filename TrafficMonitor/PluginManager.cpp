@@ -1,9 +1,17 @@
 ﻿#include "stdafx.h"
 #include "PluginManager.h"
 #include "Common.h"
+#include "TrafficMonitor.h"
 
 CPluginManager::CPluginManager()
 {
+}
+
+CPluginManager::~CPluginManager()
+{
+    //卸载插件
+    for (const auto& m : m_modules)
+        FreeLibrary(m.plugin_module);
 }
 
 static wstring WcharArrayToWString(const wchar_t* str)
@@ -28,6 +36,16 @@ void CPluginManager::LoadPlugins()
         PluginInfo& plugin_info{ m_modules.back() };
         //插件dll的路径
         plugin_info.file_path = plugin_dir + file;
+        //插件文件名
+        std::wstring file_name{ file };
+        if (!file_name.empty() && (file_name[0] == L'\\' || file_name[0] == L'/'))
+            file_name = file_name.substr(1);
+        //如果插件被禁用，则不加载插件
+        if (theApp.m_cfg_data.plugin_disabled.Contains(file_name))
+        {
+            plugin_info.state = PluginState::PS_DISABLE;
+            continue;
+        }
         //载入dll
         plugin_info.plugin_module = LoadLibrary(plugin_info.file_path.c_str());
         if (plugin_info.plugin_module == NULL)
@@ -78,12 +96,29 @@ const std::vector<CPluginManager::PluginInfo>& CPluginManager::GetPlugins()
     return m_modules;
 }
 
-IPluginItem* CPluginManager::GetItemByName(const std::wstring& item_name)
+IPluginItem* CPluginManager::GetItemById(const std::wstring& item_id)
 {
     for (const auto& item : m_plugins)
     {
-        if (item->GetItemName() == item_name)
+        if (item->GetItemId() == item_id)
             return item;
     }
     return nullptr;
+}
+
+IPluginItem* CPluginManager::GetItemByIndex(int index)
+{
+    if (index >= 0 && index < static_cast<int>(m_plugins.size()))
+        return m_plugins[index];
+    return nullptr;
+}
+
+int CPluginManager::GetItemIndex(IPluginItem* item) const
+{
+    for (auto iter = m_plugins.begin(); iter != m_plugins.end(); ++iter)
+    {
+        if (*iter == item)
+            return iter - m_plugins.begin();
+    }
+    return -1;
 }
