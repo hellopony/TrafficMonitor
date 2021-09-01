@@ -1,8 +1,8 @@
 ﻿#pragma once
 #include "PluginInterface.h"
-#include <memory>
+#include <map>
 
-typedef ITMPlugin* (*pfTMPluginCreateInstance)();
+typedef ITMPlugin* (*pfTMPluginGetInstance)();
 
 //用于加载和管理插件
 class CPluginManager
@@ -22,14 +22,11 @@ public:
     {
         wstring file_path;      //文件路径
         HMODULE plugin_module;  //dll module
-        std::shared_ptr<ITMPlugin> plugin;      //插件对象
+        ITMPlugin* plugin;      //插件对象
         std::vector<IPluginItem*> plugin_items; //插件提供的所有显示项目
         PluginState state{};    //插件的状态
         DWORD error_code{};     //错误代码（GetLastError的返回值）
-        wstring name;
-        wstring description;
-        wstring author;
-        wstring copyright;
+        std::map<ITMPlugin::PluginInfoIndex, std::wstring> properties;    //插件属性
     };
 
     CPluginManager();

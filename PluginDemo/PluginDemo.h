@@ -2,11 +2,15 @@
 #include "PluginInterface.h"
 #include "PluginSystemDate.h"
 #include "PluginSystemTime.h"
+#include "CustomDrawItem.h"
 
 class CPluginDemo : public ITMPlugin
 {
-public:
+private:
     CPluginDemo();
+
+public:
+    static CPluginDemo& Instance();
 
     // 通过 ITMPlugin 继承
     virtual IPluginItem* GetItem(int index) override;
@@ -17,12 +21,15 @@ public:
 private:
     CPluginSystemDate m_system_date;
     CPluginSystemTime m_system_time;
+    CCustomDrawItem m_custom_draw_item;
+
+    static CPluginDemo m_instance;
 };
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-    __declspec(dllexport) ITMPlugin* TMPluginCreateInstance();
+    __declspec(dllexport) ITMPlugin* TMPluginGetInstance();
 
 #ifdef __cplusplus
 }
