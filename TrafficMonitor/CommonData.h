@@ -3,24 +3,32 @@
 #include "stdafx.h"
 #include "TaskbarItemOrderHelper.h"
 
-//储存某一天的历史流量
-struct HistoryTraffic
+struct Date
 {
     int year{};
     int month{};
     int day{};
-    //unsigned int kBytes;  //当天使用的流量（以KB为单位）
+
+    int week() const;       //该日期是一年的第几周
+
+    //比较两个HistoryTraffic对象的日期，如果a的时间大于b，则返回true
+    static bool DateGreater(const Date& a, const Date& b);
+
+    //判断两个HistoryTraffic对象的日期是否相等
+    static bool DateEqual(const Date& a, const Date& b);
+
+};
+
+//储存某一天的历史流量
+struct HistoryTraffic : public Date
+{
+    //当天使用的流量（以KB为单位）
     unsigned __int64 up_kBytes{};
     unsigned __int64 down_kBytes{};
     bool mixed{ true };     //如果不区分上传和下载流量，则为true
 
     unsigned __int64 kBytes() const;
 
-    //比较两个HistoryTraffic对象的日期，如果a的时间大于b，则返回true
-    static bool DateGreater(const HistoryTraffic& a, const HistoryTraffic& b);
-
-    //判断两个HistoryTraffic对象的日期是否相等
-    static bool DateEqual(const HistoryTraffic& a, const HistoryTraffic& b);
 };
 
 //历史流量统计中用于指示不同范围内的流量的颜色
@@ -144,6 +152,7 @@ struct FontInfo
 enum class HistoryTrafficViewType
 {
     HV_DAY,         //日视图
+    HV_WEEK,        //周视图
     HV_MONTH,          //月视图
     HV_QUARTER,     //季视图
     HV_YEAR            //年视图
@@ -219,7 +228,7 @@ struct PublicSettingData
 //选项设置中“主窗口设置”的数据
 struct MainWndSettingData : public PublicSettingData
 {
-    std::map<DisplayItem, COLORREF> text_colors{};    //方字的颜色
+    std::map<CommonDisplayItem, COLORREF> text_colors{};    //方字的颜色
     bool swap_up_down{ false };     //交换上传和下载显示的位置
     bool hide_main_wnd_when_fullscreen;     //有程序全屏运行时隐藏悬浮窗
     bool m_always_on_top{ false };      //窗口置顶
@@ -243,7 +252,7 @@ struct TaskBarSettingData : public PublicSettingData
     COLORREF  back_color{ RGB(0, 0, 0) };   //背景颜色
     COLORREF transparent_color{ RGB(0, 0, 0) };     //透明色
     COLORREF status_bar_color{ RGB(0, 0, 0) };      // CPU/内存 状态条颜色
-    std::map<DisplayItem, TaskbarItemColor> text_colors{};    //文字的颜色
+    std::map<CommonDisplayItem, TaskbarItemColor> text_colors{};    //文字的颜色
     int dft_back_color = 0;                         //默认背景颜色
     int dft_transparent_color = 0;                  //默认透明色
     int dft_status_bar_color = 0x005A5A5A;          //默认CPU/内存 状态条颜色
