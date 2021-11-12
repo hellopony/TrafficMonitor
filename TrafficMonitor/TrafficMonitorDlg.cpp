@@ -579,6 +579,8 @@ void CTrafficMonitorDlg::UpdateNotifyIconTip()
             strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> °C"), { CCommon::LoadText(IDS_HDD_TEMPERATURE), static_cast<int>(theApp.m_hdd_temperature) });
         if (theApp.m_general_data.IsHardwareEnable(HI_MBD) && theApp.m_main_board_temperature > 0)
             strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> °C"), { CCommon::LoadText(IDS_MAINBOARD_TEMPERATURE), static_cast<int>(theApp.m_main_board_temperature) });
+        if (theApp.m_general_data.IsHardwareEnable(HI_HDD) && theApp.m_hdd_usage >= 0)
+            strTip += CCommon::StringFormat(_T("\r\n<%1%>: <%2%> %"), { CCommon::LoadText(IDS_HDD_USAGE), theApp.m_hdd_usage });
     }
 
     CCommon::WStringCopy(m_ntIcon.szTip, 128, strTip);
@@ -2287,7 +2289,7 @@ void CTrafficMonitorDlg::OnChangeSkin()
         //获取皮肤的文字颜色
         theApp.m_main_wnd_data.specify_each_item_color = skinDlg.GetSkinData().GetSkinInfo().specify_each_item_color;
         int i{};
-        for (const auto& item : AllDisplayItems)
+        for (const auto& item : theApp.m_plugins.AllDisplayItemsWithPlugins())
         {
             theApp.m_main_wnd_data.text_colors[item] = skinDlg.GetSkinData().GetSkinInfo().TextColor(i);
             i++;
