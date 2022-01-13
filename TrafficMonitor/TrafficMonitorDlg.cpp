@@ -103,6 +103,7 @@ BEGIN_MESSAGE_MAP(CTrafficMonitorDlg, CDialog)
     ON_COMMAND(ID_SHOW_HDD_TEMPERATURE, &CTrafficMonitorDlg::OnShowHddTemperature)
     ON_COMMAND(ID_SHOW_MAIN_BOARD_TEMPERATURE, &CTrafficMonitorDlg::OnShowMainBoardTemperature)
     ON_COMMAND(ID_SHOW_HDD, &CTrafficMonitorDlg::OnShowHddUsage)
+    ON_COMMAND(ID_SHOW_TOTAL_SPEED, &CTrafficMonitorDlg::OnShowTotalSpeed)
     ON_WM_PAINT()
     ON_MESSAGE(WM_DPICHANGED, &CTrafficMonitorDlg::OnDpichanged)
     ON_MESSAGE(WM_TASKBAR_WND_CLOSED, &CTrafficMonitorDlg::OnTaskbarWndClosed)
@@ -664,6 +665,7 @@ void CTrafficMonitorDlg::ApplySettings(COptionsDlg& optionsDlg)
     theApp.m_main_wnd_data = optionsDlg.m_tab1_dlg.m_data;
     theApp.m_taskbar_data = optionsDlg.m_tab2_dlg.m_data;
     theApp.m_general_data = optionsDlg.m_tab3_dlg.m_data;
+    theApp.SendSettingsToPlugin();
 
     CGeneralSettingsDlg::CheckTaskbarDisplayItem();
 
@@ -2582,6 +2584,11 @@ void CTrafficMonitorDlg::OnShowHddUsage()
     TaskbarShowHideItem(TDI_HDD_USAGE);
 }
 
+
+void CTrafficMonitorDlg::OnShowTotalSpeed()
+{
+    TaskbarShowHideItem(TDI_TOTAL_SPEED);
+}
 
 void CTrafficMonitorDlg::OnPaint()
 {
