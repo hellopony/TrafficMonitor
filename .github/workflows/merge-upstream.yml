@@ -49,6 +49,7 @@ jobs:
         else
         echo "There is no merge commits."
         fi
+        
     - name: Push Commits
       env:
         DOWNSTREAM_BRANCH: master
