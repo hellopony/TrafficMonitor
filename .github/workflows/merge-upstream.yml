@@ -27,6 +27,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         ref: master
+        token: ${{ secrets.UPTODATE }}
         fetch-depth: 0
         lfs: true
 
