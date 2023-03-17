@@ -45,6 +45,19 @@ CTrafficMonitorDlg::~CTrafficMonitorDlg()
     ::ReleaseDC(NULL, m_desktop_dc);
 }
 
+CTaskBarDlg* CTrafficMonitorDlg::GetTaskbarWindow() const
+{
+    if (IsTaskbarWndValid())
+        return m_tBarDlg;
+    else
+        return nullptr;
+}
+
+CTrafficMonitorDlg* CTrafficMonitorDlg::Instance()
+{
+    return dynamic_cast<CTrafficMonitorDlg*>(theApp.m_pMainWnd);
+}
+
 void CTrafficMonitorDlg::DoDataExchange(CDataExchange* pDX)
 {
     CDialog::DoDataExchange(pDX);
@@ -529,6 +542,8 @@ void CTrafficMonitorDlg::OpenTaskBarWnd()
     m_tBarDlg = new CTaskBarDlg;
 
     CSupportedRenderEnums supported_render_enums{};
+    // 强制初始化theApp.m_is_windows11_taskbar的值
+    CTaskBarDlg::GetShellTrayWndHandleAndSaveWindows11TaskBarExistenceInfoToTheApp();
     CTaskBarDlg::DisableRenderFeatureIfNecessary(supported_render_enums);
     auto render_type = supported_render_enums.GetAutoFitEnum();
     // WS_EX_LAYERED 和 WS_EX_NOREDIRECTIONBITMAP 可以共存，见微软示例代码
@@ -1058,7 +1073,9 @@ HCURSOR CTrafficMonitorDlg::OnQueryDragIcon()
 //计算指定秒数的时间内Monitor定时器会触发的次数
 static int GetMonitorTimerCount(int second)
 {
-    return second * 1000 / theApp.m_general_data.monitor_time_span;
+    int count = second * 1000 / theApp.m_general_data.monitor_time_span;
+    if (count <= 0) count = 1;
+    return count;
 }
 
 
@@ -1195,7 +1212,6 @@ UINT CTrafficMonitorDlg::MonitorThreadCallback(LPVOID dwUser)
         info.Replace(_T("<%cnt%>"), CCommon::IntToString(pThis->m_restart_cnt));
         CCommon::WriteLog(info, theApp.m_log_path.c_str());
     }
-
 
     if (pThis->m_monitor_time_cnt % GetMonitorTimerCount(3) == GetMonitorTimerCount(3) - 1)
     {

@@ -289,8 +289,12 @@ struct TaskBarSettingData : public PublicSettingData
     bool tbar_wnd_snap{ false };     	//如果为true，则在Win11中任务栏窗口贴靠中间任务栏，否则靠近边缘
     bool cm_graph_type{ false };        //如果为false，默认原样式，柱状图显示占用率，如为true，滚动显示占用率
     bool show_graph_dashed_box{ true }; //显示占用图虚线框
-    int item_space{};                   //任务栏项目间距
+    int item_space{};                   //项目间距
+    int window_offset_top{};            //任务栏窗口顶部边距
+    int vertical_margin{};              //项目垂直间距
     void ValidItemSpace();
+    void ValidWindowOffsetTop();
+    void ValidVerticalMargin();
 
     bool show_netspeed_figure{ false };     //是否显示网速占用图
     int netspeed_figure_max_value;          //网速占用图的最大值
@@ -357,7 +361,7 @@ struct GeneralSettingData
 
 //定义监控时间间隔有效的最大值和最小值
 #define MONITOR_TIME_SPAN_MIN 200
-#define MONITOR_TIME_SPAN_MAX 2000
+#define MONITOR_TIME_SPAN_MAX 30000
 
 enum class Alignment
 {
