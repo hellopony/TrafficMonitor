@@ -10,7 +10,6 @@
 
 #include "resource.h"       // 主符号
 #include "Common.h"
-#include "IniHelper.h"
 #include "WinVersionHelper.h"
 #include "SimpleXML.h"
 #include "TaskbarDefaultStyle.h"
@@ -20,6 +19,8 @@
 #include "Nullable.hpp"
 #include "TaskBarDlgDrawCommon.h"
 #include "DllFunctions.h"
+#include "StrTable.h"
+#include "PluginUpdateHelper.h"
 
 // CTrafficMonitorApp:
 // 有关此类的实现，请参阅 TrafficMonitor.cpp
@@ -77,7 +78,6 @@ public:
     bool m_last_light_mode{};
     bool m_show_mouse_panetrate_tip{};  //是否显示开启“鼠标穿透”时的提示消息。
     bool m_show_dot_net_notinstalled_tip{};
-    bool m_is_windows11_taskbar{ false };  //是否为Windows11的任务栏
 
     //bool m_is_windows10_fall_creator;
     CWinVersionHelper m_win_version;        //当前Windows的版本
@@ -87,6 +87,8 @@ public:
     CTaskbarDefaultStyle m_taskbar_default_style;
     CPluginManager m_plugins;
     CDllFunctions m_dll_functions;
+    CStrTable m_str_table;
+    CPluginUpdateHelper m_plugin_update;
 
     CMenu m_main_menu;          //主窗口右键菜单
     CMenu m_main_menu_plugin;   //右击主窗口插件区域的右键菜单
@@ -107,6 +109,7 @@ public:
 public:
     CTrafficMonitorApp();
 
+    void LoadLanguageConfig();
     void LoadConfig();
     void SaveConfig();
     void LoadPluginDisabledSettings();
@@ -157,7 +160,16 @@ public:
     void SendSettingsToPlugin();    //向所有插件发送当前的选项设置
 
     //更新插件子菜单
-    static void UpdatePluginMenu(CMenu* pMenu, ITMPlugin* plugin);
+    //plugin_cmd_start_index: 插件命令在菜单中的起始位置
+    static void UpdatePluginMenu(CMenu* pMenu, ITMPlugin* plugin, int plugin_cmd_start_index);
+
+    void CheckWindows11Taskbar();
+    bool IsWindows11Taskbar() const { return m_is_windows11_taskbar; }
+
+    bool DPIFromRect(const RECT& rect, UINT* out_dpi_x, UINT* out_dpi_y);
+
+    COLORREF GetThemeColor() const;
+    void SetThemeColor(COLORREF color);
 
 private:
     //int m_no_multistart_warning_time{};       //用于设置在开机后多长时间内不弹出“已经有一个程序正在运行”的警告提示
@@ -169,6 +181,11 @@ private:
 
     std::map<UINT, HICON> m_menu_icons;      //菜单图标资源。key是图标资源的ID，vlaue是图标的句柄
 
+    ULONG_PTR m_gdiplusToken{};
+
+    bool m_is_windows11_taskbar{ false };  //是否为Windows11的任务栏
+    COLORREF m_theme_color{};
+
 // 重写
 public:
     virtual BOOL InitInstance();
@@ -179,6 +196,7 @@ public:
     afx_msg void OnHelp();
     afx_msg void OnFrequentyAskedQuestions();
     afx_msg void OnUpdateLog();
+    virtual int ExitInstance();
 };
 
 extern CTrafficMonitorApp theApp;

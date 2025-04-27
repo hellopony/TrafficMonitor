@@ -33,10 +33,21 @@ protected:
     bool IsSelectedValid();
     bool IsSelectedPluginEnable();     //选中插件是否可用
 
+    enum Column
+    {
+        COL_FILE_NAME,
+        COL_NAME,
+        COL_VERSION,
+        COL_STATUS,
+        COL_MAX
+    };
+
     DECLARE_MESSAGE_MAP()
 
     // 通过 CBaseDialog 继承
     virtual CString GetDialogName() const override;
+    virtual bool InitializeControls() override;
+
 public:
     virtual BOOL OnInitDialog();
     afx_msg void OnNMRClickList1(NMHDR* pNMHDR, LRESULT* pResult);
@@ -50,4 +61,5 @@ public:
     afx_msg void OnPluginDisable();
 protected:
     afx_msg LRESULT OnLinkClicked(WPARAM wParam, LPARAM lParam);
+    virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
 };

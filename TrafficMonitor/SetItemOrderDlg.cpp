@@ -31,12 +31,12 @@ const std::vector<int>& CSetItemOrderDlg::GetItemOrder() const
     return m_item_order.GetItemOrderConst();
 }
 
-void CSetItemOrderDlg::SetDisplayItem(unsigned int display_item)
+void CSetItemOrderDlg::SetDisplayItem(const DisplayItemSet& display_item)
 {
     m_display_item = display_item;
 }
 
-unsigned int CSetItemOrderDlg::GetDisplayItem() const
+DisplayItemSet CSetItemOrderDlg::GetDisplayItem() const
 {
     return m_display_item;
 }
@@ -77,7 +77,7 @@ BOOL CSetItemOrderDlg::OnInitDialog()
     // TODO:  在此添加额外的初始化
     SetIcon(theApp.GetMenuIcon(IDI_ITEM), FALSE);		// 设置小图标
 
-    m_list_ctrl.SetItemHeight(0, theApp.DPI(20));
+    m_list_ctrl.SetItemHeight(0, DPI(20));
     EnableCtrl(-1);
     ShowItem();
 
@@ -122,7 +122,7 @@ bool CSetItemOrderDlg::GetItemChecked(CommonDisplayItem item)
     }
     else
     {
-        return m_display_item & item.item_type;
+        return m_display_item.Contains(item.item_type);
     }
     return false;
 }
@@ -137,9 +137,9 @@ void CSetItemOrderDlg::SaveItemChecked(CommonDisplayItem item, bool checked)
     else
     {
         if (checked)
-            m_display_item |= item.item_type;
+            m_display_item.Add(item.item_type);
         else
-            m_display_item &= ~item.item_type;
+            m_display_item.Remove(item.item_type);
     }
 }
 
@@ -225,8 +225,8 @@ void CSetItemOrderDlg::OnOK()
     //    SaveItemChecked(item, is_checked);
     //}
 
-    if (m_display_item == 0)
-        m_display_item = TDI_UP;
+    if (m_display_item.IsEmpty() && m_plugin_item.data().empty())
+        m_display_item.Add(TDI_UP);
 
     CBaseDialog::OnOK();
 }

@@ -104,7 +104,6 @@ bool CHistoryTrafficCalendarDlg::IsWeekend(int index)
 
 CString CHistoryTrafficCalendarDlg::GetWeekdayString(int index)
 {
-    CString str;
     if (!theApp.m_cfg_data.m_sunday_first)
     {
         index++;
@@ -114,28 +113,21 @@ CString CHistoryTrafficCalendarDlg::GetWeekdayString(int index)
     switch (index)
     {
     case 0:
-        str.LoadString(IDS_SUNDAY);
-        break;
+        return CCommon::LoadText(IDS_SUNDAY);
     case 1:
-        str.LoadString(IDS_MONDAY);
-        break;
+        return CCommon::LoadText(IDS_MONDAY);
     case 2:
-        str.LoadString(IDS_TUESDAY);
-        break;
+        return CCommon::LoadText(IDS_TUESDAY);
     case 3:
-        str.LoadString(IDS_WEDNESDAY);
-        break;
+        return CCommon::LoadText(IDS_WEDNESDAY);
     case 4:
-        str.LoadString(IDS_THURSDAY);
-        break;
+        return CCommon::LoadText(IDS_THURSDAY);
     case 5:
-        str.LoadString(IDS_FRIDAY);
-        break;
+        return CCommon::LoadText(IDS_FRIDAY);
     case 6:
-        str.LoadString(IDS_SATURDAY);
-        break;
+        return CCommon::LoadText(IDS_SATURDAY);
     }
-    return str;
+    return CString();
 }
 
 BEGIN_MESSAGE_MAP(CHistoryTrafficCalendarDlg, CTabDlg)
@@ -187,7 +179,7 @@ BOOL CHistoryTrafficCalendarDlg::OnInitDialog()
     m_tool_tips.SetMaxTipWidth(800);        //为鼠标提示设置一个最大宽度，以允许其换行
     m_tool_tips.AddTool(this, _T(""));
 
-    m_menu.LoadMenu(IDR_HISTORY_TRAFFIC_MENU);
+    CCommon::LoadMenuResource(m_menu, IDR_HISTORY_TRAFFIC_MENU);
 
     return TRUE;  // return TRUE unless you set the focus to a control
                   // 异常: OCX 属性页应返回 FALSE
@@ -233,7 +225,7 @@ void CHistoryTrafficCalendarDlg::OnPaint()
         else
             draw.SetBackColor(RGB(1, 107, 191));
         CString str = GetWeekdayString(i);
-        draw.DrawWindowText(rect, str, RGB(255, 255, 255), Alignment::CENTER, true);
+        draw.DrawWindowText(rect, str, RGB(255, 255, 255), IDrawCommon::Alignment::CENTER, true);
     }
 
     //绘制日历
@@ -271,7 +263,7 @@ void CHistoryTrafficCalendarDlg::OnPaint()
             else
                 text_color = RGB(0, 57, 107);
             if (m_calendar[i][j].day != 0)
-                draw.DrawWindowText(day_rect, CCommon::IntToString(m_calendar[i][j].day), text_color, Alignment::CENTER, true);
+                draw.DrawWindowText(day_rect, CCommon::IntToString(m_calendar[i][j].day), text_color, IDrawCommon::Alignment::CENTER, true);
             //在今天的日期上画一个矩形框
             COLORREF frame_color;
             if (IsWeekend(j))
@@ -319,7 +311,7 @@ void CHistoryTrafficCalendarDlg::OnPaint()
     info_rect.right = info_rect.left + m_draw_rect.Width();
     info_rect.bottom = info_rect.top + theApp.DPI(36);
     draw.SetBackColor(RGB(255, 255, 255));
-    draw.DrawWindowText(info_rect, info, text_color, Alignment::LEFT, true, true);
+    draw.DrawWindowText(info_rect, info, text_color, IDrawCommon::Alignment::LEFT, true, true);
 
     //画图例
     CRect rc_legend{ info_rect };
@@ -327,7 +319,7 @@ void CHistoryTrafficCalendarDlg::OnPaint()
     rc_legend.right = m_draw_rect.Width();
     rc_legend.bottom = rc_legend.top + theApp.DPI(16);
 
-    draw.DrawWindowText(rc_legend, CCommon::LoadText(IDS_LEGEND, _T(":")), text_color, Alignment::LEFT, true, true);
+    draw.DrawWindowText(rc_legend, CCommon::LoadText(IDS_LEGEND, _T(":")), text_color, IDrawCommon::Alignment::LEFT, true, true);
     rc_legend.MoveToY(rc_legend.bottom + theApp.DPI(6));
     CRect rc_legend_box{ rc_legend };
     const int box_side{ theApp.DPI(12) };

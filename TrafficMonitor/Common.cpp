@@ -38,6 +38,24 @@ string CCommon::UnicodeToStr(const wchar_t* wstr, bool utf8)
     return result;
 }
 
+wstring CCommon::AsciiToUnicode(const string& str)
+{
+    std::wstring result;
+    result.resize(str.size());
+    for (size_t i{}; i < str.size(); i++)
+        result[i] = str[i];
+    return result;
+}
+
+string CCommon::AsciiToStr(const std::wstring& wstr)
+{
+    std::string result;
+    result.resize(wstr.size());
+    for (size_t i{}; i < wstr.size(); i++)
+        result[i] = static_cast<char>(wstr[i]);
+    return result;
+}
+
 bool CCommon::GetFileContent(const wchar_t* file_path, string& contents_buff, bool binary /*= true*/)
 {
     std::ifstream file{ file_path, (binary ? std::ios::binary : std::ios::in) };
@@ -237,7 +255,10 @@ CString CCommon::FreqToString(float freq, const PublicSettingData& cfg)
     if (freq < 0)
         str_val = _T("--");
     else
-        str_val.Format(_T("%.2f GHz"), freq);
+        str_val.Format(_T("%.2f"), freq);
+    if (cfg.separate_value_unit_with_space)
+        str_val += _T(' ');
+    str_val += _T("GHz");
     return str_val;
 }
 //CString CCommon::KBytesToString(unsigned int kb_size)
@@ -498,6 +519,24 @@ SYSTEMTIME CCommon::CompareSystemTime(SYSTEMTIME a, SYSTEMTIME b)
     return result;
 }
 
+ULONGLONG CCommon::GetCurrentTimeSinceEpochMilliseconds()
+{
+    FILETIME fileTime;
+    GetSystemTimeAsFileTime(&fileTime);  // 获取当前系统时间
+
+    // 将FILETIME转换为ULARGE_INTEGER以便计算
+    ULARGE_INTEGER uli;
+    uli.LowPart = fileTime.dwLowDateTime;
+    uli.HighPart = fileTime.dwHighDateTime;
+
+    // 从1601年1月1日到1970年1月1日的100纳秒间隔数
+    const ULONGLONG EPOCH_OFFSET = 116444736000000000ULL;
+
+    // 转换为从1970年1月1日开始的毫秒数
+    ULONGLONG millisecondsSince1970 = (uli.QuadPart - EPOCH_OFFSET) / 10000;
+    return millisecondsSince1970;
+}
+
 wstring CCommon::GetModuleDir()
 {
     wchar_t path[MAX_PATH];
@@ -623,7 +662,7 @@ wstring CCommon::GetJsonValueSimple(const wstring& json_str, const wstring& name
     return result;
 }
 
-bool CCommon::GetURL(const wstring& url, wstring& result, bool utf8, const wstring& user_agent)
+bool CCommon::GetURL(const wstring& url, std::string& result, const wstring& user_agent)
 {
     bool succeed{ false };
     CInternetSession* pSession{};
@@ -642,7 +681,7 @@ bool CCommon::GetURL(const wstring& url, wstring& result, bool utf8, const wstri
             {
                 content += data;
             }
-            result = StrToUnicode((const char*)content.GetString(), utf8);
+            result = std::string((const char*)content.GetString());
             succeed = true;
         }
         pfile->Close();
@@ -669,6 +708,17 @@ bool CCommon::GetURL(const wstring& url, wstring& result, bool utf8, const wstri
         SAFE_DELETE(pSession);
     }
     SAFE_DELETE(pSession);
+    return succeed;
+}
+
+bool CCommon::GetURL(const wstring& url, wstring& result, bool utf8, const wstring& user_agent)
+{
+    std::string str_result;
+    bool succeed = GetURL(url, str_result, user_agent);
+    if (succeed)
+    {
+        result = CCommon::StrToUnicode(str_result.c_str(), utf8);
+    }
     return succeed;
 }
 
@@ -746,19 +796,17 @@ void CCommon::SetRect(CRect& rect, int x, int y, int width, int height)
     rect.bottom = y + height;
 }
 
-CString CCommon::LoadText(UINT id, LPCTSTR back_str)
+CString CCommon::LoadText(const wchar_t* id, LPCTSTR back_str)
 {
-    CString str;
-    str.LoadString(id);
+    CString str = theApp.m_str_table.LoadText(id).c_str();
     if (back_str != nullptr)
         str += back_str;
     return str;
 }
 
-CString CCommon::LoadText(LPCTSTR front_str, UINT id, LPCTSTR back_str)
+CString CCommon::LoadText(LPCTSTR front_str, const wchar_t* id, LPCTSTR back_str)
 {
-    CString str;
-    str.LoadString(id);
+    CString str = theApp.m_str_table.LoadText(id).c_str();
     if (back_str != nullptr)
         str += back_str;
     if (front_str != nullptr)
@@ -782,10 +830,9 @@ CString CCommon::StringFormat(LPCTSTR format_str, const std::initializer_list<CV
     return str_rtn;
 }
 
-CString CCommon::LoadTextFormat(UINT id, const std::initializer_list<CVariant>& paras)
+CString CCommon::LoadTextFormat(const wchar_t* id, const std::initializer_list<CVariant>& paras)
 {
-    CString str;
-    str.LoadString(id);
+    CString str = theApp.m_str_table.LoadText(id).c_str();
     return StringFormat(str.GetString(), paras);
 }
 
@@ -874,15 +921,25 @@ void CCommon::WStringCopy(wchar_t* str_dest, int dest_size, const wchar_t* str_s
         str_dest[dest_size - 1] = L'\0';
 }
 
-void CCommon::SetThreadLanguage(Language language)
+bool CCommon::StringReplace(wstring& str, const wstring& str_old, const wstring& str_new)
 {
-    switch (language)
+    if (str.empty())
+        return false;
+    bool replaced{ false };
+    size_t pos = 0;
+    while ((pos = str.find(str_old, pos)) != std::wstring::npos)
     {
-    case Language::ENGLISH: SetThreadUILanguage(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US)); break;
-    case Language::SIMPLIFIED_CHINESE: SetThreadUILanguage(MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED)); break;
-    case Language::TRADITIONAL_CHINESE: SetThreadUILanguage(MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL)); break;
-    default: break;
+        str.replace(pos, str_old.length(), str_new);
+        replaced = true;
+        pos += str_new.length();    // 前进到替换后的字符串末尾
     }
+    return replaced;
+}
+
+void CCommon::SetThreadLanguage(WORD language)
+{
+    if (language != 0)
+        SetThreadUILanguage(language);
 }
 
 void CCommon::SetColorMode(ColorMode mode)
@@ -890,8 +947,17 @@ void CCommon::SetColorMode(ColorMode mode)
     switch (mode)
     {
     case ColorMode::Default:
-        CTrafficMonitorApp::self->m_taskbar_data.dft_back_color = 0;
-        CTrafficMonitorApp::self->m_taskbar_data.dft_transparent_color = 0;
+        //Win8/8.1下背景色和透明色不使用纯黑色
+        if (theApp.m_win_version.IsWindows8Or8point1())
+        {
+            CTrafficMonitorApp::self->m_taskbar_data.dft_back_color = RGB(0, 0, 1);
+            CTrafficMonitorApp::self->m_taskbar_data.dft_transparent_color = RGB(0, 0, 1);
+        }
+        else
+        {
+            CTrafficMonitorApp::self->m_taskbar_data.dft_back_color = 0;
+            CTrafficMonitorApp::self->m_taskbar_data.dft_transparent_color = 0;
+        }
         CTrafficMonitorApp::self->m_taskbar_data.dft_status_bar_color = 0x005A5A5A;
         CTrafficMonitorApp::self->m_taskbar_data.dft_text_colors = 0x00ffffffU;
         CTrafficMonitorApp::self->m_cfg_data.m_dft_notify_icon = 0;
@@ -945,16 +1011,21 @@ CString CCommon::GetTextResource(UINT id, int code_type)
     HRSRC hRes = FindResource(NULL, MAKEINTRESOURCE(id), _T("TEXT"));
     if (hRes != NULL)
     {
+        DWORD resSize = SizeofResource(NULL, hRes);  // 获取资源的大小
         HGLOBAL hglobal = LoadResource(NULL, hRes);
         if (hglobal != NULL)
         {
+            LPVOID pResourceData = LockResource(hglobal);  // 获取资源数据的指针
             if (code_type == 2)
             {
-                res_str = (const wchar_t*)hglobal;
+                // 资源是宽字符字符串
+                res_str = CString((const wchar_t*)pResourceData, resSize / sizeof(wchar_t));
             }
             else
             {
-                res_str = CCommon::StrToUnicode((const char*)hglobal, (code_type != 0)).c_str();
+                // 资源是窄字符字符串
+                std::string strData((const char*)pResourceData, resSize);
+                res_str = CCommon::StrToUnicode(strData.c_str(), (code_type != 0)).c_str();
             }
         }
     }
@@ -987,6 +1058,48 @@ int CCommon::GetMenuItemPosition(CMenu* pMenu, UINT id)
         }
     }
     return pos;
+}
+
+// 递归遍历菜单项并处理多语言翻译
+static void TranslateMenuItems(CMenu& menu)
+{
+    // 遍历菜单项
+    for (int i = 0; i < menu.GetMenuItemCount(); ++i)
+    {
+        UINT menuItemID = menu.GetMenuItemID(i);
+        CString menuText;
+        menu.GetMenuString(i, menuText, MF_BYPOSITION);
+
+        // 检查菜单项文本是否以TXT_开头
+        if (menuText.Left(4) == _T("TXT_"))
+        {
+            // 获取翻译后的文本
+            std::wstring key(menuText);
+            const std::wstring& translatedText = theApp.m_str_table.LoadMenuText(key);
+
+            // 更新菜单项文本
+            menu.ModifyMenu(i, MF_BYPOSITION | MF_STRING, menuItemID, translatedText.c_str());
+        }
+
+        if (menuItemID == -1)
+        {
+            // 这是一个弹出菜单（子菜单），递归处理
+            CMenu* pSubMenu = menu.GetSubMenu(i);
+            if (pSubMenu)
+            {
+                TranslateMenuItems(*pSubMenu); // 递归调用
+            }
+        }
+    }
+}
+
+void CCommon::LoadMenuResource(CMenu& menu, UINT res_id)
+{
+    // 加载菜单资源
+    menu.LoadMenu(res_id);
+
+    // 处理菜单项翻译
+    TranslateMenuItems(menu);
 }
 
 bool CCommon::IsColorSimilar(COLORREF color1, COLORREF color2)
@@ -1026,4 +1139,21 @@ void CCommon::SetNumberBit(unsigned int& num, int bit, bool value)
 bool CCommon::GetNumberBit(unsigned int num, int bit)
 {
     return (num & (1 << bit)) != 0;
+}
+
+COLORREF CCommon::GetWindowsThemeColor()
+{
+    DWORD crColorization;
+    BOOL fOpaqueBlend;
+    COLORREF theme_color{};
+    HRESULT result = DwmGetColorizationColor(&crColorization, &fOpaqueBlend);
+    if (result == S_OK)
+    {
+        BYTE r, g, b;
+        r = (crColorization >> 16) % 256;
+        g = (crColorization >> 8) % 256;
+        b = crColorization % 256;
+        theme_color = RGB(r, g, b);
+    }
+    return theme_color;
 }

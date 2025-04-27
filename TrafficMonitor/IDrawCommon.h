@@ -18,6 +18,14 @@ public:
         FIT      // 适应，不会改变比例，不裁剪
     };
 
+    //对齐方式
+    enum class Alignment
+    {
+        LEFT,       //左对齐
+        RIGHT,      //右对齐
+        CENTER,     //居中
+    };
+
     virtual void SetBackColor(COLORREF back_color, BYTE alpha = 255) = 0;
     // 设置绘制文本的字体
     virtual void SetFont(CFont* pfont) = 0;
@@ -37,6 +45,11 @@ public:
     // 需要重新设置绘图剪辑区域，否则图片外的区域会无法绘制）
     virtual void DrawBitmap(HBITMAP hbitmap, CPoint start_point, CSize size, StretchMode stretch_mode = StretchMode::STRETCH, BYTE alpha = 255) = 0;
     virtual ~IDrawCommon() = default;
+
+    //获取绘图上下文句柄。仅在GDI或GDI+时有效
+    virtual CDC* GetDC() { return nullptr; }
+    //获取文本宽度
+    virtual int GetTextWidth(LPCTSTR lpszString) { return 0; }
 };
 
 namespace DrawCommonHelper
@@ -62,18 +75,17 @@ namespace DrawCommonHelper
     constexpr BYTE GDI_MODIFIED_FLAG = 0x00;
 }
 
-template <class... Types>
-struct variant_storage
+template <class... Ts>
+class AlignedUnionStorage
 {
-    ~variant_storage() = delete;
-};
-template <class First, class... Other>
-struct variant_storage<First, Other...>
-{
-    union
+private:
+    alignas(Ts...) std::byte m_buffer[(std::max)({sizeof(Ts)...})]{};
+
+public:
+    AlignedUnionStorage() = default;
+    ~AlignedUnionStorage() = default;
+    std::byte* operator&() noexcept
     {
-        First m_head;
-        variant_storage<Other...> m_tail;
-    };
-    ~variant_storage() = delete;
+        return m_buffer;
+    }
 };

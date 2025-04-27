@@ -57,7 +57,6 @@ enum HardwareItem
 };
 
 #define DEF_CH L'\"'        //写入和读取ini文件字符串时，在字符串前后添加的字符
-#define NONE_STR L"@@@"     //用于指定一个无效字符串
 struct DispStrings      //显示的文本
 {
 private:
@@ -66,10 +65,11 @@ private:
 public:
     //获取一个显示的文本
     wstring& Get(CommonDisplayItem item);
+    const wstring& GetConst(CommonDisplayItem item) const;
 
     const std::map<CommonDisplayItem, wstring>& GetAllItems() const;
 
-    void operator=(const DispStrings& disp_str);     //重载赋值运算符
+    bool operator==(const DispStrings& disp_str) const;
 
     //载入一个插件项目的显示文本
     void Load(const std::wstring& plugin_id, const std::wstring& disp_str);
@@ -89,15 +89,6 @@ enum class DoubleClickAction
     SEPCIFIC_APP,       //指定应用程序
     CHANGE_SKIN,        //更换皮肤
     NONE                //不执行任何动作
-};
-
-//语言
-enum class Language
-{
-    FOLLOWING_SYSTEM,       //跟随系统
-    ENGLISH,                //英语
-    SIMPLIFIED_CHINESE,     //简体中文
-    TRADITIONAL_CHINESE     //繁体中文
 };
 
 //颜色模式
@@ -123,15 +114,17 @@ inline int FontSizeToLfHeight(int font_size, int dpi = 0)
 //字体
 struct FontInfo
 {
-    CString name;   //字体名称
-    int size;       //字体大小
-    bool bold;          //粗体
-    bool italic;        //斜体
-    bool underline;     //下划线
-    bool strike_out;    //删除线
+    CString name;       //字体名称
+    int size{ 9 };      //字体大小
+    bool bold{};        //粗体
+    bool italic{};      //斜体
+    bool underline{};   //下划线
+    bool strike_out{};  //删除线
+
+    bool operator==(const FontInfo& a) const;
 
     //创建一个CFont对象
-    void Create(CFont& font, int dpi = 0)
+    void Create(CFont& font, int dpi = 0) const
     {
         font.CreateFont(
             FontSizeToLfHeight(size, dpi), // nHeight
@@ -192,6 +185,11 @@ struct MainConfigData
     string m_connection_name;      //当前选择网络的名称
 
     wstring m_skin_name;            //选择的皮肤的名称
+
+    bool skin_auto_adapt{ false };  //根据深色/浅色模式自动切换皮肤
+    wstring skin_name_light_mode;   //浅色模式下的皮肤名称
+    wstring skin_name_dark_mode;    //深色模式下的皮肤名称
+
     int m_dft_notify_icon = 0;      //默认的通知图标(用于区分win10的深色和浅色模式)
     int m_notify_icon_selected{};   //要显示的通知区图标
     bool m_notify_icon_auto_adapt{ false }; //通知区图标是否自动适应Win10深浅色模式
@@ -202,7 +200,6 @@ struct MainConfigData
     bool m_sunday_first{ true };            //是否将周日作为一周的第一天
     StringSet plugin_disabled;      //已禁用的插件
 
-    int taskbar_left_space_win11{};         //Windows11下，任务栏窗口显示在左侧时的边距
 };
 
 //内存显示方式
@@ -211,6 +208,18 @@ enum class MemoryDisplay
     USAGE_PERCENTAGE,       //已使用百分比
     MEMORY_USED,            //内存已使用
     MEMORY_AVAILABLE        //内存可用
+};
+
+//为每个皮肤单独保存的数据
+struct SkinSettingData
+{
+    FontInfo font;          //字体
+    DispStrings disp_str;   //显示的文本
+    std::map<CommonDisplayItem, COLORREF> text_colors{};    //文字的颜色
+    bool specify_each_item_color{};
+
+    bool IsEmpty() const;
+    bool operator==(const SkinSettingData& a) const;
 };
 
 //选项设置中“主窗口设置”和“任务栏窗口设置”中公共的数据（不使用此结构体创建对象）
@@ -236,7 +245,7 @@ struct PublicSettingData
 //选项设置中“主窗口设置”的数据
 struct MainWndSettingData : public PublicSettingData
 {
-    std::map<CommonDisplayItem, COLORREF> text_colors{};    //方字的颜色
+    std::map<CommonDisplayItem, COLORREF> text_colors{};    //文字的颜色
     bool swap_up_down{ false };     //交换上传和下载显示的位置
     bool hide_main_wnd_when_fullscreen;     //有程序全屏运行时隐藏悬浮窗
     bool m_always_on_top{ false };      //窗口置顶
@@ -244,6 +253,8 @@ struct MainWndSettingData : public PublicSettingData
     bool m_mouse_penetrate{ false };    //鼠标穿透
     bool m_alow_out_of_border{ false };     //是否允许悬浮窗超出屏幕边界
 
+    void FormSkinSettingData(const SkinSettingData& sking_setting_data);
+    SkinSettingData ToSkinSettingData() const;
 };
 
 //#define TASKBAR_COLOR_NUM 18      //任务栏窗口颜色数量
@@ -280,9 +291,11 @@ struct TaskBarSettingData : public PublicSettingData
     void SetTaskabrTransparent(bool transparent);
 
     CTaskbarItemOrderHelper item_order;
-    unsigned int m_tbar_display_item{ TDI_UP | TDI_DOWN };      //任务栏窗口显示的项目
+    DisplayItemSet display_item{ TDI_UP, TDI_DOWN };      //任务栏窗口显示的项目
     StringSet plugin_display_item;                  //任务窗口显示的插件项目
 
+    bool show_taskbar_wnd_in_secondary_display{ false };    //是否在副显示器上显示任务栏窗口
+    int secondary_display_index{};      //在第几个副显示器上显示任务栏窗口
     bool value_right_align{ false };    //数值是否右对齐
     int digits_number{ 4 };             //数据位数
     bool horizontal_arrange{ true };    //水平排列
@@ -291,20 +304,30 @@ struct TaskBarSettingData : public PublicSettingData
     bool tbar_wnd_snap{ false };     	//如果为true，则在Win11中任务栏窗口贴靠中间任务栏，否则靠近边缘
     bool cm_graph_type{ false };        //如果为false，默认原样式，柱状图显示占用率，如为true，滚动显示占用率
     bool show_graph_dashed_box{ true }; //显示占用图虚线框
+
     int item_space{};                   //项目间距
-    int window_offset_top{};            //任务栏窗口顶部边距
     int vertical_margin{};              //项目垂直间距
+    int window_offset_top{};            //任务栏窗口顶部边距
+    int window_offset_left{};           //任务栏窗口左侧边距
     void ValidItemSpace();
-    void ValidWindowOffsetTop();
     void ValidVerticalMargin();
+    void ValidWindowOffsetTop();
+    void ValidWindowOffsetLeft();
+    bool avoid_overlap_with_widgets{ false };   //避免与右侧小组件重叠
+    int taskbar_left_space_win11{};         //Windows11下，任务栏小工具的宽度
 
     bool show_netspeed_figure{ false };     //是否显示网速占用图
     int netspeed_figure_max_value;          //网速占用图的最大值
     int netspeed_figure_max_value_unit{};   //网速占用图最大值的单位（0: KB, 1: MB）
     unsigned __int64 GetNetspeedFigureMaxValueInBytes() const;  //获取网速占用图的最大值（以字节为单位）
+    bool graph_color_following_system{ false }; //占用图颜色跟随系统主题色
+    COLORREF GetUsageGraphColor() const;    //获取占用图的颜色
 
     bool disable_d2d{ false };//是否禁用d2d绘图
     DWORD update_layered_window_error_code{0}; // 使用D2D1渲染时，UpdateLayeredWindowIndirect失败的错误代码，会在关闭任务栏窗口时被重置为0
+    bool enable_colorful_emoji{ true };       //是否显示彩色emoji
+
+    bool is_windows_web_experience_detected{ false }; //是否检测到Windows Web Experience小组件安装信息
 };
 
 //选项设置中“常规设置”的数据
@@ -313,8 +336,6 @@ struct GeneralSettingData
     bool check_update_when_start{ true };
     int update_source{};                    //更新源。0: GitHub; 1: Gitee
     bool auto_run{ false };
-    bool allow_skin_cover_font{ true };
-    bool allow_skin_cover_text{ true };
     bool show_notify_icon{ true };    //显示通知区域图标
 //通知消息
     bool traffic_tip_enable{ false };       //是否启用流量超出时提示
@@ -333,11 +354,19 @@ struct GeneralSettingData
     NotifyTipSettings mainboard_temp_tip;   //主板温度超出提示
 
 
-    //语言
-    Language language;
+    //语言id
+    WORD language;
 
     bool show_all_interface{ true };
-    bool m_get_cpu_usage_by_cpu_times{ true };  //获取CPU利用率的方式，如果为true则是使用GetSystemTimes，否则使用Pdh（性能计数器）
+
+    //CPU利用率获取方式
+    enum CpuUsageAcquireMethod
+    {
+        CA_CPU_TIME,    //使用时间
+        CA_PDH,         //性能计数器
+        CA_HARDWARE_MONITOR     //来自硬件监控
+    };
+    CpuUsageAcquireMethod cpu_usage_acquire_method{};  //获取CPU利用率的方式
 
     bool portable_mode{ false };        //便携模式，如果为true，则程序所有数据都保存到exe所在目录下，否则保存到Appdata\Romaing目录下
     int monitor_time_span{ 1000 };    //监控的时间间隔
@@ -364,14 +393,6 @@ struct GeneralSettingData
 //定义监控时间间隔有效的最大值和最小值
 #define MONITOR_TIME_SPAN_MIN 200
 #define MONITOR_TIME_SPAN_MAX 30000
-
-enum class Alignment
-{
-    LEFT,       //左对齐
-    RIGHT,      //右对齐
-    CENTER,     //居中
-    SIDE        //两端对齐
-};
 
 //通过构造函数传递一个bool变量的引用，在构造时将其置为true，析构时置为false
 class CFlagLocker
