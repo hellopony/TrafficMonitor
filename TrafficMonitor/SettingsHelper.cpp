@@ -82,15 +82,15 @@ void CSettingsHelper::LoadTaskbarWndColors(const wchar_t* AppName, const wchar_t
     {
         if (index < split_result.size())
             text_colors[*iter].label = _wtoi(split_result[index].c_str());
-        else if (!split_result.empty())
-            text_colors[*iter].label = _wtoi(split_result[0].c_str());
+        //else if (!split_result.empty())
+        //    text_colors[*iter].label = _wtoi(split_result[0].c_str());
         else
             text_colors[*iter].label = default_color;
 
         if (index + 1 < split_result.size())
             text_colors[*iter].value = _wtoi(split_result[index + 1].c_str());
-        else if (split_result.size() > 1)
-            text_colors[*iter].value = _wtoi(split_result[1].c_str());
+        //else if (split_result.size() > 1)
+        //    text_colors[*iter].value = _wtoi(split_result[1].c_str());
         else
             text_colors[*iter].value = default_color;
         index += 2;
@@ -132,7 +132,7 @@ void CSettingsHelper::SaveDisplayStr(const wchar_t* AppName, const DispStrings& 
 {
     for (const auto& item : disp_str.GetAllItems())
     {
-        if (!item.first.is_plugin)
+        if (!item.first.IsPlugin())
         {
             WriteString(AppName, item.first.GetItemIniKeyName(), item.second);
         }

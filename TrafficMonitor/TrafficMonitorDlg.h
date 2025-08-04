@@ -156,14 +156,16 @@ protected:
 
     void AddNotifyIcon();       //添加通知区图标
     void DeleteNotifyIcon();
+public:
     void ShowNotifyTip(const wchar_t* title, const wchar_t* message);       //显示通知区提示
+protected:
     void UpdateNotifyIconTip();     //更新通知区图标的鼠标提示
 
     void SaveHistoryTraffic();
     void LoadHistoryTraffic();
     void BackupHistoryTrafficFile();
 
-    void _OnOptions(int tab);   //打开“选项”对话框的处理，参数为打开时切换的标签
+    void _OnOptions(int tab, CWnd* pParent);   //打开“选项”对话框的处理，tab：打开时切换的标签
 
     void ApplySettings(COptionsDlg& optionsDlg);
 
@@ -173,7 +175,9 @@ protected:
     void LoadBackGroundImage();
     void SetTextFont();
 
+public:
     bool IsTaskbarWndValid() const;
+protected:
 
     void TaskbarShowHideItem(DisplayItem type);
 

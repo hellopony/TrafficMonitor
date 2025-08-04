@@ -12,12 +12,23 @@ public:
 	CMessageDlg(CWnd* pParent = NULL);   // 标准构造函数
 	virtual ~CMessageDlg();
 
-	void SetWindowTitle(LPCTSTR str);
-	void SetInfoText(LPCTSTR str);
-	void SetMessageText(LPCTSTR str);
+	void SetWindowTitle(LPCTSTR str);	//设置窗口标题
+	void SetInfoText(LPCTSTR str);		//设置消息标题
+	void SetMessageText(LPCTSTR str);	//设置消息文本
 	//void ShowLinkStatic(bool show = true) { m_show_link_ctrl = show; }
 	//void SetLinkInfo(LPCTSTR text, LPCTSTR url);
     void SetMessageIcon(HICON hIcon);
+
+	//消息对话框的系统标准图标
+	enum StandardIcon
+	{
+		SI_INFORMATION,
+		SI_WARNING,
+		SI_ERROR
+	};
+
+	//为消息对话框框设置系统标准图标
+	void SetStandarnMessageIcon(StandardIcon standard_icon);
 
 // 对话框数据
 #ifdef AFX_DESIGN_TIME
@@ -38,13 +49,10 @@ protected:
 
     HICON m_icon{};
     CPoint m_icon_pos{};        //图标的位置
-    CRect m_rc_info{};          //错误信息Static控件的初始区域
 
 	//bool m_show_link_ctrl{ false };
 
 protected:
-    void SetInfoStaticSize(int cx);     //如果设置了图标，则需要将错误信息Static控件向右移动一些
-
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
 
 	DECLARE_MESSAGE_MAP()

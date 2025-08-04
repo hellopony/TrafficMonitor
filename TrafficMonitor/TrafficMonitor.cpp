@@ -252,6 +252,7 @@ void CTrafficMonitorApp::LoadConfig()
     m_taskbar_data.ValidWindowOffsetLeft();
     m_taskbar_data.avoid_overlap_with_widgets = ini.GetBool(_T("task_bar"), _T("avoid_overlap_with_widgets"), false);
     m_taskbar_data.taskbar_left_space_win11 = ini.GetInt(L"task_bar", L"taskbar_left_space_win11", 160);
+    m_taskbar_data.taskbar_right_space_win11 = ini.GetInt(L"task_bar", L"taskbar_right_space_win11", 280);
 
     if (m_win_version.IsWindows10OrLater())     //只有Win10才支持自动适应系统深色/浅色主题
         m_taskbar_data.auto_adapt_light_theme = ini.GetBool(L"task_bar", L"auto_adapt_light_theme", false);
@@ -416,6 +417,7 @@ void CTrafficMonitorApp::SaveConfig()
     ini.WriteInt(L"task_bar", L"window_offset_left", m_taskbar_data.window_offset_left);
     ini.WriteBool(L"task_bar", L"avoid_overlap_with_widgets", m_taskbar_data.avoid_overlap_with_widgets);
     ini.WriteInt(L"task_bar", L"taskbar_left_space_win11", m_taskbar_data.taskbar_left_space_win11);
+    ini.WriteInt(L"task_bar", L"taskbar_right_space_win11", m_taskbar_data.taskbar_right_space_win11);
 
     ini.WriteBool(L"task_bar", L"auto_adapt_light_theme", m_taskbar_data.auto_adapt_light_theme);
     ini.WriteInt(L"task_bar", L"dark_default_style", m_taskbar_data.dark_default_style);
@@ -749,9 +751,14 @@ CString CTrafficMonitorApp::GetSystemInfoString()
     info += _T("System Info:\r\n");
 
     CString strTmp;
-    strTmp.Format(_T("Windows Version: %d.%d build %d\r\n"), m_win_version.GetMajorVersion(),
+    strTmp.Format(_T("Windows Version: %d.%d build %d"), m_win_version.GetMajorVersion(),
         m_win_version.GetMinorVersion(), m_win_version.GetBuildNumber());
     info += strTmp;
+
+    if (m_win_version.IsWine())
+        info += _T(" (Wine)");
+
+    info += _T("\r\n");
 
     strTmp.Format(_T("DPI: %d"), m_dpi);
     info += strTmp;
@@ -1224,14 +1231,14 @@ std::wstring CTrafficMonitorApp::GetPlauginTooltipInfo() const
 
 bool CTrafficMonitorApp::IsTaksbarItemDisplayed(CommonDisplayItem item) const
 {
-    if (item.is_plugin)
+    if (item.IsPlugin())
     {
-        if (item.plugin_item != nullptr)
-            return m_taskbar_data.plugin_display_item.Contains(item.plugin_item->GetItemId());
+        if (item.PluginItem() != nullptr)
+            return m_taskbar_data.plugin_display_item.Contains(item.PluginItem()->GetItemId());
     }
     else
     {
-        return m_taskbar_data.display_item.Contains(item.item_type);
+        return m_taskbar_data.display_item.Contains(item.ItemType());
     }
     return false;
 }
@@ -1295,10 +1302,10 @@ void CTrafficMonitorApp::UpdatePluginMenu(CMenu* pMenu, ITMPlugin* plugin, int p
 
 void CTrafficMonitorApp::CheckWindows11Taskbar()
 {
-    HWND hTaskbar = ::FindWindow(L"Shell_TrayWnd", NULL);
     // 在“Shell_TrayWnd”的子窗口找到类名为“Windows.UI.Composition.DesktopWindowContentBridge”的窗口则认为是Windows11的任务栏
     if (m_win_version.IsWindows11OrLater())
     {
+        HWND hTaskbar = ::FindWindow(L"Shell_TrayWnd", NULL);
         m_is_windows11_taskbar = (::FindWindowExW(hTaskbar, 0, L"Windows.UI.Composition.DesktopWindowContentBridge", NULL) != NULL);
     }
     else
@@ -1314,7 +1321,7 @@ bool CTrafficMonitorApp::DPIFromRect(const RECT& rect, UINT* out_dpi_x, UINT* ou
     return hr == S_OK;
 }
 
-COLORREF CTrafficMonitorApp::GetThemeColor() const
+unsigned int CTrafficMonitorApp::GetThemeColor() const
 {
     return m_theme_color;
 }
@@ -1383,4 +1390,108 @@ int CTrafficMonitorApp::ExitInstance()
     Gdiplus::GdiplusShutdown(m_gdiplusToken);
 
     return CWinApp::ExitInstance();
+}
+
+int CTrafficMonitorApp::GetAPIVersion()
+{
+    return 0;
+}
+
+const wchar_t* CTrafficMonitorApp::GetVersion()
+{
+    return VERSION;
+}
+
+double CTrafficMonitorApp::GetMonitorValue(MonitorItem item)
+{
+    switch (item)
+    {
+    case MI_UP: return m_out_speed;
+    case MI_DOWN: return m_in_speed;
+    case MI_CPU: return m_cpu_usage;
+    case MI_MEMORY: return m_memory_usage;
+    case MI_GPU_USAGE: return m_gpu_usage;
+    case MI_CPU_TEMP: return m_cpu_temperature;
+    case MI_GPU_TEMP: return m_gpu_temperature;
+    case MI_HDD_TEMP: return m_hdd_temperature;
+    case MI_MAIN_BOARD_TEMP: return m_main_board_temperature;
+    case MI_HDD_USAGE: return m_hdd_usage;
+    case MI_CPU_FREQ: return m_cpu_freq;
+    case MI_TODAY_UP_TRAFFIC: return m_today_up_traffic;
+    case MI_TODAY_DOWN_TRAFFIC: return m_today_down_traffic;
+    }
+    return 0.0;
+}
+
+const wchar_t* CTrafficMonitorApp::GetMonitorValueString(MonitorItem item, int is_main_window)
+{
+    static CString str_value;
+    if (item == MI_TODAY_UP_TRAFFIC)
+    {
+        str_value = CCommon::KBytesToString(theApp.m_today_up_traffic / 1024u);
+    }
+    else if (item == MI_TODAY_DOWN_TRAFFIC)
+    {
+        str_value = CCommon::KBytesToString(theApp.m_today_down_traffic / 1024u);
+    }
+    else
+    {
+        DisplayItem display_item{};
+        switch (item)
+        {
+        case MI_UP: display_item = DisplayItem::TDI_UP; break;
+        case MI_DOWN: display_item = DisplayItem::TDI_DOWN; break;
+        case MI_CPU: display_item = DisplayItem::TDI_CPU; break;
+        case MI_MEMORY: display_item = DisplayItem::TDI_MEMORY; break;
+        case MI_GPU_USAGE: display_item = DisplayItem::TDI_GPU_USAGE; break;
+        case MI_CPU_TEMP: display_item = DisplayItem::TDI_CPU_TEMP; break;
+        case MI_GPU_TEMP: display_item = DisplayItem::TDI_GPU_TEMP; break;
+        case MI_HDD_TEMP: display_item = DisplayItem::TDI_HDD_TEMP; break;
+        case MI_MAIN_BOARD_TEMP: display_item = DisplayItem::TDI_MAIN_BOARD_TEMP; break;
+        case MI_HDD_USAGE: display_item = DisplayItem::TDI_HDD_USAGE; break;
+        case MI_CPU_FREQ: display_item = DisplayItem::TDI_CPU_FREQ; break;
+        }
+        str_value = CommonDisplayItem(display_item).GetItemValueText(is_main_window);
+    }
+    return str_value.GetString();
+}
+
+void CTrafficMonitorApp::ShowNotifyMessage(const wchar_t* strMsg)
+{
+    CTrafficMonitorDlg* pMainWnd = dynamic_cast<CTrafficMonitorDlg*>(m_pMainWnd);
+    if (pMainWnd != nullptr)
+    {
+        pMainWnd->ShowNotifyTip(CCommon::LoadText(IDS_TRAFFICMONITOR_PLUGIN_NITIFICATION), strMsg);
+    }
+}
+
+unsigned short CTrafficMonitorApp::GetLanguageId() const
+{
+    return m_general_data.language;
+}
+
+const wchar_t* CTrafficMonitorApp::GetPluginConfigDir() const
+{
+    static std::wstring config_dir;
+    config_dir = m_config_dir;
+    config_dir += L"plugins\\";
+    return config_dir.c_str();
+}
+
+int CTrafficMonitorApp::GetDPI(DPIType type) const
+{
+    CTrafficMonitorDlg* pMainWnd = dynamic_cast<CTrafficMonitorDlg*>(m_pMainWnd);
+    switch (type)
+    {
+    case DPI_MAIN_WND:
+        return m_dpi;
+    case DPI_TASKBAR:
+        if (pMainWnd != nullptr)
+        {
+            if (pMainWnd->IsTaskbarWndValid())
+                return pMainWnd->GetTaskbarWindow()->GetDPI();
+        }
+        return m_dpi;
+    }
+    return 0;
 }

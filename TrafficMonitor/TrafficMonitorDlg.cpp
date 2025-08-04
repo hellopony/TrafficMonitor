@@ -15,6 +15,7 @@
 #include "SupportedRenderEnums.h"
 #include "ClassicalTaskbarDlg.h"
 #include "Win11TaskbarDlg.h"
+#include "WineTaskbarDlg.h"
 #include "TaskbarHelper.h"
 #include "SkinManager.h"
 
@@ -565,7 +566,9 @@ void CTrafficMonitorDlg::OpenTaskBarWnd()
 {
     // 强制初始化theApp.m_is_windows11_taskbar的值
     theApp.CheckWindows11Taskbar();
-    if (theApp.IsWindows11Taskbar())
+    if (theApp.m_win_version.IsWine())
+        m_tBarDlg = new CWineTaskbarDlg();
+    else if (theApp.IsWindows11Taskbar())
         m_tBarDlg = new CWin11TaskbarDlg();
     else
         m_tBarDlg = new CClassicalTaskbarDlg();
@@ -710,9 +713,9 @@ void CTrafficMonitorDlg::BackupHistoryTrafficFile()
     }
 }
 
-void CTrafficMonitorDlg::_OnOptions(int tab)
+void CTrafficMonitorDlg::_OnOptions(int tab, CWnd* pParent)
 {
-    COptionsDlg optionsDlg(tab, this);
+    COptionsDlg optionsDlg(tab, pParent);
 
     //将选项设置数据传递给选项设置对话框
     if (COptionsDlg::GetUniqueHandel(OPTION_DLG_NAME) == NULL)     //确保此时选项设置对话框已经关闭
@@ -1591,7 +1594,10 @@ void CTrafficMonitorDlg::OnTimer(UINT_PTR nIDEvent)
         if (theApp.m_main_wnd_data.m_always_on_top && !theApp.m_cfg_data.m_hide_main_window)
         {
             //每隔1秒钟就判断一下前台窗口是否全屏
-            m_is_foreground_fullscreen = CCommon::IsForegroundFullscreen();
+            CRect rect;
+            GetWindowRect(rect);
+            HMONITOR h_current_monitor = ::MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
+            m_is_foreground_fullscreen = CCommon::IsForegroundFullscreen(h_current_monitor);
             if (theApp.m_main_wnd_data.hide_main_wnd_when_fullscreen)       //当设置了全屏时隐藏悬浮窗时
             {
                 if (m_is_foreground_fullscreen || theApp.m_cfg_data.m_hide_main_window)
@@ -1657,7 +1663,7 @@ void CTrafficMonitorDlg::OnTimer(UINT_PTR nIDEvent)
         if (!theApp.m_cfg_data.m_hide_main_window || theApp.m_cfg_data.m_show_task_bar_wnd)
         {
             //每隔10秒钟检测一次是否可以嵌入任务栏
-            if (IsTaskbarWndValid() && m_timer_cnt % 10 == 1)
+            if (!theApp.m_win_version.IsWine() && IsTaskbarWndValid() && m_timer_cnt % 10 == 1)
             {
                 if (m_tBarDlg->GetCannotInsertToTaskBar() && m_insert_to_taskbar_cnt < MAX_INSERT_TO_TASKBAR_CNT)
                 {
@@ -1952,14 +1958,14 @@ void CTrafficMonitorDlg::OnRButtonUp(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
     CheckClickedItem(point);
-    bool is_plugin_item_clicked = (m_clicked_item.is_plugin && m_clicked_item.plugin_item != nullptr);
+    bool is_plugin_item_clicked = (m_clicked_item.IsPlugin() && m_clicked_item.PluginItem() != nullptr);
     ITMPlugin* plugin{};
     if (is_plugin_item_clicked)
     {
-        plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+        plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
         if (plugin != nullptr && plugin->GetAPIVersion() >= 3)
         {
-            if (m_clicked_item.plugin_item->OnMouseEvent(IPluginItem::MT_RCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
+            if (m_clicked_item.PluginItem()->OnMouseEvent(IPluginItem::MT_RCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
                 return;
         }
     }
@@ -2016,12 +2022,12 @@ void CTrafficMonitorDlg::OnLButtonDown(UINT nFlags, CPoint point)
     // TODO: 在此添加消息处理程序代码和/或调用默认值
     CheckClickedItem(point);
     bool plugin_item_clicked = false;   //是否响应了插件项目的左键点击事件
-    if (m_clicked_item.is_plugin && m_clicked_item.plugin_item != nullptr)      //点击的是否为插件项目
+    if (m_clicked_item.IsPlugin() && m_clicked_item.PluginItem() != nullptr)      //点击的是否为插件项目
     {
-        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
         if (plugin != nullptr && plugin->GetAPIVersion() >= 3)
         {
-            if (m_clicked_item.plugin_item->OnMouseEvent(IPluginItem::MT_LCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
+            if (m_clicked_item.PluginItem()->OnMouseEvent(IPluginItem::MT_LCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
             {
                 plugin_item_clicked = true;
                 Invalidate();
@@ -2161,9 +2167,9 @@ BOOL CTrafficMonitorDlg::OnCommand(WPARAM wParam, LPARAM lParam)
     if (uMsg >= ID_PLUGIN_COMMAND_START && uMsg <= ID_PLUGIN_COMMAND_MAX)
     {
         int index = uMsg - ID_PLUGIN_COMMAND_START;
-        if (m_clicked_item.is_plugin && m_clicked_item.plugin_item != nullptr)
+        if (m_clicked_item.IsPlugin() && m_clicked_item.PluginItem() != nullptr)
         {
-            ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+            ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
             if (plugin != nullptr && plugin->GetAPIVersion() >= 5)
             {
                 plugin->OnPluginCommand(index, (void*)GetSafeHwnd(), nullptr);
@@ -2215,7 +2221,7 @@ void CTrafficMonitorDlg::OnInitMenu(CMenu* pMenu)
     pMenu->EnableMenuItem(ID_CHECK_UPDATE, MF_BYCOMMAND | (theApp.IsCheckingForUpdate() ? MF_GRAYED : MF_ENABLED));
 
     //设置插件命令的勾选状态
-    ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+    ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
     if (plugin != nullptr && plugin->GetAPIVersion() >= 5)
     {
         for (int i = ID_PLUGIN_COMMAND_START; i <= ID_PLUGIN_COMMAND_MAX; i++)
@@ -2246,10 +2252,10 @@ BOOL CTrafficMonitorDlg::PreTranslateMessage(MSG* pMsg)
         bool ctrl = (GetKeyState(VK_CONTROL) & 0x80);
         bool shift = (GetKeyState(VK_SHIFT) & 0x8000);
         bool alt = (GetKeyState(VK_MENU) & 0x8000);
-        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
         if (plugin != nullptr && plugin->GetAPIVersion() >= 4)
         {
-            if (m_clicked_item.plugin_item->OnKeboardEvent(pMsg->wParam, ctrl, shift, alt, (void*)GetSafeHwnd(), IPluginItem::KF_TASKBAR_WND) != 0)
+            if (m_clicked_item.PluginItem()->OnKeboardEvent(pMsg->wParam, ctrl, shift, alt, (void*)GetSafeHwnd(), IPluginItem::KF_TASKBAR_WND) != 0)
                 return TRUE;
         }
     }
@@ -2582,12 +2588,12 @@ void CTrafficMonitorDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
     CheckClickedItem(point);
-    if (m_clicked_item.is_plugin && m_clicked_item.plugin_item != nullptr)
+    if (m_clicked_item.IsPlugin() && m_clicked_item.PluginItem() != nullptr)
     {
-        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
         if (plugin != nullptr && plugin->GetAPIVersion() >= 3)
         {
-            if (m_clicked_item.plugin_item->OnMouseEvent(IPluginItem::MT_DBCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
+            if (m_clicked_item.PluginItem()->OnMouseEvent(IPluginItem::MT_DBCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
                 return;
         }
     }
@@ -2624,14 +2630,17 @@ void CTrafficMonitorDlg::OnLButtonDblClk(UINT nFlags, CPoint point)
 
 void CTrafficMonitorDlg::OnOptions()
 {
-    _OnOptions(0);
+    _OnOptions(0, this);
 }
 
 
 //通过任务栏窗口的右键菜单打开“选项”对话框
 void CTrafficMonitorDlg::OnOptions2()
 {
-    _OnOptions(1);
+    CWnd* pParent = this;
+    if (IsTaskbarWndValid())
+        pParent = m_tBarDlg;
+    _OnOptions(1, pParent);
 }
 
 
@@ -2887,12 +2896,12 @@ void CTrafficMonitorDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
     // TODO: 在此添加消息处理程序代码和/或调用默认值
     //CheckClickedItem(point);
-    //if (m_clicked_item.is_plugin && m_clicked_item.plugin_item != nullptr)
+    //if (m_clicked_item.IsPlugin() && m_clicked_item.PluginItem() != nullptr)
     //{
-    //    ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+    //    ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
     //    if (plugin != nullptr && plugin->GetAPIVersion() >= 3)
     //    {
-    //        if (m_clicked_item.plugin_item->OnMouseEvent(IPluginItem::MT_LCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
+    //        if (m_clicked_item.PluginItem()->OnMouseEvent(IPluginItem::MT_LCLICKED, point.x, point.y, (void*)GetSafeHwnd(), 0) != 0)
     //            return;
     //    }
     //}
@@ -2916,10 +2925,10 @@ afx_msg LRESULT CTrafficMonitorDlg::OnTabletQuerysystemgesturestatus(WPARAM wPar
 
 void CTrafficMonitorDlg::OnPluginOptions()
 {
-    if (m_clicked_item.is_plugin)
+    if (m_clicked_item.IsPlugin())
     {
         //找到对应的插件
-        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
         if (plugin != nullptr)
         {
             //显示插件的选项设置
@@ -2933,10 +2942,10 @@ void CTrafficMonitorDlg::OnPluginOptions()
 
 void CTrafficMonitorDlg::OnPluginDetail()
 {
-    if (m_clicked_item.is_plugin)
+    if (m_clicked_item.IsPlugin())
     {
         //找到对应的插件
-        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.plugin_item);
+        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_clicked_item.PluginItem());
         if (plugin != nullptr)
         {
             int index = theApp.m_plugins.GetPluginIndex(plugin);
@@ -2950,10 +2959,10 @@ void CTrafficMonitorDlg::OnPluginDetail()
 void CTrafficMonitorDlg::OnPluginOptionsTaksbar()
 {
     //判断任务栏窗口中点击的项目是否是插件项目
-    if (IsTaskbarWndValid() && m_tBarDlg->GetClickedItem().is_plugin)
+    if (IsTaskbarWndValid() && m_tBarDlg->GetClickedItem().IsPlugin())
     {
         //找到对应的插件
-        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_tBarDlg->GetClickedItem().plugin_item);
+        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_tBarDlg->GetClickedItem().PluginItem());
         if (plugin != nullptr)
         {
             //显示插件的选项设置
@@ -2973,10 +2982,10 @@ void CTrafficMonitorDlg::OnPluginOptionsTaksbar()
 
 void CTrafficMonitorDlg::OnPluginDetailTaksbar()
 {
-    if (IsTaskbarWndValid() && m_tBarDlg->GetClickedItem().is_plugin)
+    if (IsTaskbarWndValid() && m_tBarDlg->GetClickedItem().IsPlugin())
     {
         //找到对应的插件
-        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_tBarDlg->GetClickedItem().plugin_item);
+        ITMPlugin* plugin = theApp.m_plugins.GetPluginByItem(m_tBarDlg->GetClickedItem().PluginItem());
         if (plugin != nullptr)
         {
             int index = theApp.m_plugins.GetPluginIndex(plugin);

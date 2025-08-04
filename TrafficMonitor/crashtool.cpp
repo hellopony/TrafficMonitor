@@ -115,6 +115,8 @@ public:
             pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
             pSymbol->MaxNameLen = MAX_SYM_NAME;
 
+            stream << L"--------------------------------------\r\n";
+
             DWORD64 displacement = 0;
             if (SymFromAddr(GetCurrentProcess(), stackFrame.AddrPC.Offset, &displacement, pSymbol)) {
                 stream << L"Function: " << CCommon::AsciiToUnicode(pSymbol->Name) << L" (Displacement: " << displacement << L")\r\n";
@@ -156,14 +158,7 @@ public:
         }
 		info += theApp.GetSystemInfoString();
 		dlg.SetMessageText(info);
-
-        //设置图标
-        HICON hIcon;
-        HRESULT hr = LoadIconWithScaleDown(NULL, IDI_ERROR, theApp.DPI(32), theApp.DPI(32), &hIcon);
-
-        if (SUCCEEDED(hr))
-            dlg.SetMessageIcon(hIcon);
-
+        dlg.SetStandarnMessageIcon(CMessageDlg::SI_ERROR);
         dlg.DoModal();
 	}
 
