@@ -130,8 +130,8 @@ public:
     static UINT CheckUpdateThreadFunc(LPVOID lpParam);
     static UINT InitOpenHardwareMonitorLibThreadFunc(LPVOID lpParam);
 
-    bool SetAutoRun(bool auto_run);
-    bool GetAutoRun(wstring* auto_run_path);        //判断是否开机自动进行，如果是，将开机自动运行的路径写入auto_run_path
+    bool SetAutoRun(bool auto_run, bool task_scheduler);
+    bool GetAutoRun(wstring* auto_run_path, bool task_scheduler);        //判断是否开机自动进行，如果是，将开机自动运行的路径写入auto_run_path
 
     bool SetAutoRunByRegistry(bool auto_run);       //通过注册表实现开机自启动
     bool SetAutoRunByTaskScheduler(bool auto_run);  //通过任务计划实现开机自启动
@@ -205,6 +205,7 @@ private:
     virtual const wchar_t* GetVersion() override;
     double GetMonitorValue(MonitorItem item) override;
     virtual const wchar_t* GetMonitorValueString(MonitorItem item, int is_main_window = false) override;
+    virtual const wchar_t* GetStringRes(const wchar_t* key, const wchar_t* section) override;
 public:
     void ShowNotifyMessage(const wchar_t* strMsg) override;
     unsigned short GetLanguageId() const override;

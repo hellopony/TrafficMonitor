@@ -3,7 +3,6 @@
 #include "Common.h"
 #include "IniHelper.h"
 #include "TrafficMonitor.h"
-
 CStrTable::CStrTable()
 {
 }
@@ -12,7 +11,7 @@ CStrTable::~CStrTable()
 {
 }
 
-static void LanguageInfoFromIni(CStrTable::LanguageInfo& language_info, const CIniHelper& ini)
+static void LanguageInfoFromIni(LanguageInfo& language_info, const CIniHelper& ini)
 {
     language_info.display_name = ini.GetString(L"general", L"DISPLAY_NAME", L"");
     language_info.bcp_47 = ini.GetString(L"general", L"BCP_47", L"");
@@ -24,7 +23,7 @@ static void LanguageInfoFromIni(CStrTable::LanguageInfo& language_info, const CI
 // 回调函数，用于枚举资源语言
 static BOOL CALLBACK EnumResLangProc(HMODULE hModule, LPCTSTR lpType, LPCTSTR lpName, WORD wIDLanguage, LONG_PTR lParam)
 {
-    std::vector<CStrTable::LanguageInfo>* pLanguages = reinterpret_cast<std::vector<CStrTable::LanguageInfo>*>(lParam);
+    std::vector<LanguageInfo>* pLanguages = reinterpret_cast<std::vector<LanguageInfo>*>(lParam);
 
     // 获取资源句柄
     HRSRC hRes = FindResourceEx(hModule, lpType, lpName, wIDLanguage);
@@ -47,7 +46,7 @@ static BOOL CALLBACK EnumResLangProc(HMODULE hModule, LPCTSTR lpType, LPCTSTR lp
 
                 CIniHelper ini;
                 ini.FromDirectString(resData);
-                CStrTable::LanguageInfo lanugage_info;
+                LanguageInfo lanugage_info;
                 LanguageInfoFromIni(lanugage_info, ini);
                 lanugage_info.language_id = wIDLanguage;
                 pLanguages->push_back(lanugage_info);
@@ -70,13 +69,11 @@ void CStrTable::Init()
 
     //先读取默认字符串资源，如果当前语言中没有对应字符串，则会使用默认的字符串资源
     CIniHelper ini_default(IDR_LANGUAGE_DEFAULT);
-    ini_default.GetAllKeyValues(L"text", m_text_string_table);
-    ini_default.GetAllKeyValues(L"menu", m_menu_string_table);
+    ReadStringtableFronIni(ini_default);
 
     //读取字符串资源
     CIniHelper ini(IDR_LANGUAGE);
-    ini.GetAllKeyValues(L"text", m_text_string_table);
-    ini.GetAllKeyValues(L"menu", m_menu_string_table);
+    ReadStringtableFronIni(ini);
     LanguageInfoFromIni(m_language_info, ini);
 
     //从外部language文件夹获取语言文件
@@ -95,13 +92,11 @@ void CStrTable::Init()
         LanguageInfo language_info;
         LanguageInfoFromIni(language_info, ini_file);
         language_info.language_id = LocaleNameToLCID(language_info.bcp_47.c_str(), 0);  //根据语言bcp-47代码获取语言id
-        WORD cur_language_id = GetThreadUILanguage();   //当前语言id
         //从外部语言文件读取到当前语言，先从外部语言文件加载
-        if (language_info.language_id == cur_language_id)
+        if (language_info == theApp.m_general_data.language)
         {
             m_language_info = language_info;
-            ini_file.GetAllKeyValues(L"text", m_text_string_table);
-            ini_file.GetAllKeyValues(L"menu", m_menu_string_table);
+            ReadStringtableFronIni(ini_file);
         }
 
         //如果语言不在m_language_list，添加到该列表
@@ -113,18 +108,79 @@ void CStrTable::Init()
 
 const wstring& CStrTable::LoadText(const wstring& key) const
 {
-    auto iter = m_text_string_table.find(key);
-    if (iter != m_text_string_table.end())
+    const auto& text_string_table = GetTextStringTable();
+    return LoadText(key, text_string_table);
+}
+
+wstring CStrTable::LoadTextFormat(const wstring& key, const std::initializer_list<CVariant>& paras) const
+{
+    const auto& text_string_table = GetTextStringTable();
+    return LoadTextFormat(key, text_string_table, paras);
+}
+
+const wstring& CStrTable::LoadMenuText(const wstring& key) const
+{
+    const auto& menu_string_table = GetMenuStringTable();
+    return LoadText(key, menu_string_table);
+}
+
+const wstring& CStrTable::LoadText(const wstring& key, const wstring& section)
+{
+    auto iter = m_string_table.find(section);
+    if (iter != m_string_table.end())
+    {
+        return LoadText(key, iter->second);
+    }
+    static std::wstring str_empty;
+    return str_empty;
+}
+
+void CStrTable::ReadStringtableFronIni(const CIniHelper& ini)
+{
+    std::set<std::wstring> sections{ L"general", L"text", L"menu" };
+    auto section_list = ini.GetAllAppName(L"");
+    for (const auto& section : section_list)
+        sections.insert(section);
+
+    for (const auto& section : sections)
+    {
+        auto& value_map = m_string_table[section];
+        ini.GetAllKeyValues(section, value_map);
+    }
+}
+
+const std::map<std::wstring, std::wstring>& CStrTable::GetTextStringTable() const
+{
+    auto iter = m_string_table.find(L"text");
+    if (iter != m_string_table.end())
+        return iter->second;
+    static std::map<std::wstring, std::wstring> empty_map;
+    return empty_map;
+}
+
+const std::map<std::wstring, std::wstring>& CStrTable::GetMenuStringTable() const
+{
+    auto iter = m_string_table.find(L"menu");
+    if (iter != m_string_table.end())
+        return iter->second;
+    static std::map<std::wstring, std::wstring> empty_map;
+    return empty_map;
+}
+
+const wstring& CStrTable::LoadText(const wstring& key, const std::map<std::wstring, std::wstring>& string_table)
+{
+    auto iter = string_table.find(key);
+    if (iter != string_table.end())
         return iter->second;
     ASSERT(false);
     static std::wstring str_empty;
     return str_empty;
 }
 
-wstring CStrTable::LoadTextFormat(const wstring& key, const std::initializer_list<CVariant>& paras) const
+wstring CStrTable::LoadTextFormat(const wstring& key, const std::map<std::wstring, std::wstring>& string_table, const std::initializer_list<CVariant>& paras)
 {
-    auto iter = m_text_string_table.find(key);
-    if (iter == m_text_string_table.end())
+    auto iter = string_table.find(key);
+    if (iter == string_table.end())
     {
         ASSERT(false);
         return std::wstring();
@@ -138,14 +194,4 @@ wstring CStrTable::LoadTextFormat(const wstring& key, const std::initializer_lis
         ++index;
     }
     return str;
-}
-
-const wstring& CStrTable::LoadMenuText(const wstring& key) const
-{
-    auto iter = m_menu_string_table.find(key);
-    if (iter != m_menu_string_table.end())
-        return iter->second;
-    ASSERT(false);
-    static std::wstring str_empty;
-    return str_empty;
 }

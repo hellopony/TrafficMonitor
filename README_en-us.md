@@ -43,12 +43,14 @@ See below for the functions comparison of the two versions.
 | CPU and RAM usage monitoring                  | ✔                | ✔            |
 | CPU, GPU, hard disk, mother board temperature | ✔                | ❌            |
 | CPU frequency monitoring                      | ✔                | ✔            |
-| GPU usage monitoring                          | ✔                | ❌            |
-| Hard disk usage monitoring                    | ✔                | ❌            |
+| GPU usage monitoring                          | ✔                | ✔            |
+| Hard disk usage monitoring                    | ✔                | ✔            |
 | Network connection details                    | ✔                | ✔            |
 | Plug-in system                                | ✔                | ✔            |
 | Change the skin of the main window            | ✔                | ✔            |
 | Administrator privilege required              | Yes              | No           |
+
+Note: Since version 1.86, the TrafficMonitor Lite version also provides monitoring functions for GPU and hard disk usage. Compared to the standard version, it only lacks the temperature monitoring function. The temperature monitoring function in subsequent versions of TrafficMonitor will no longer be maintained. TrafficMonitor will no longer provide the standard version but only the Lite version. The temperature monitoring function has been moved to the [Hardware Monitor plugin](https://github.com/zhongyang219/TrafficMonitorPlugins/blob/main/download/plugin_download_en.md#hardware-monitor-plugin). If you need to use the temperature monitoring function, please download the Hardware Monitor plugin.
 
 # Main Features
 
@@ -65,7 +67,7 @@ See below for the functions comparison of the two versions.
 
 **[Click here](https://github.com/zhongyang219/TrafficMonitor/wiki) to go to the Wiki page to view detailed documentation on TrafficMonitor (Only Available in Chinese).**
 
-# Screen Shots
+# Screenshots
 
 Main Floating Window:  
 ![](./Screenshots/en_us/main1.png)  
@@ -98,7 +100,7 @@ Users can customize displayed items on the embedded taskbar window. By default, 
 <img src="./Screenshots/en_us/taskbar_item_settings.png" style="zoom:80%;" />
 
 # Customizable Skin
-<img src="./Screenshots/selecte_skin.png" style="zoom:80%;" />
+<img src="./Screenshots/en_us/selecte_skin.png" style="zoom:80%;" />
 
 You can select “Other Functions”-“Change Skin” on the right-click menu of the main window or notification area icon to open the interface of changing skin. Users can also download more skins and customize the skins [here](https://github.com/zhongyang219/TrafficMonitorSkin/blob/master/皮肤下载.md) according to their own needs.
 
@@ -115,7 +117,7 @@ Click the link below for detailed instruction on skin making:
 [皮肤制作教程 · zhongyang219/TrafficMonitor Wiki (github.com)](https://github.com/zhongyang219/TrafficMonitor/wiki/皮肤制作教程)
 
 # Configuring Options
-<img src="./Screenshots/option.jpg" style="zoom:80%;" /><br>
+<img src="./Screenshots/en_us/option.jpg" style="zoom:80%;" /><br>
 Choosing "Options..." in the pop-up menu allows users to access the options configuration. In the dialog box of options configuration, the user can set the text color, text font, background color, net speed unit, and displayed text etc. for the main window and task window separately. 
 
 In "Regular Configurations", users can change the settings on whether the program conducts auto-update and whether the program runs automatically when the computer starts up. Users can also configure when notifications need to be sent. 

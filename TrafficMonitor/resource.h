@@ -226,10 +226,7 @@
 #define IDC_EXE_PATH_STATIC             1102
 #define IDC_CM_GRAPH_BAR_RADIO          1104
 #define IDC_CM_GRAPH_PLOT_RADIO         1105
-#define IDC_USE_CPU_TIME_RADIO          1106
-#define IDC_USE_PDH_RADIO               1107
 #define IDC_BACKGROUND_TRANSPARENT_CHECK 1108
-#define IDC_USE_HARDWARE_MONITOR_RADIO  1108
 #define IDC_AUTO_ADAPT_LIGHT_THEME_CHECK 1109
 #define IDC_AUTO_ADAPT_SETTINGS_BUTTON  1110
 #define IDC_DARK_MODE_DEFAULT_STYLE_COMBO 1111
@@ -347,6 +344,8 @@
 #define IDC_GPU_TEMP_TIP_EDIT           1217
 #define IDC_HDD_TIP_EDIT                1218
 #define IDC_MBD_TEMP_TIP_EDIT           1219
+#define IDC_AUTO_RUN_METHOD_REGESTRY_RADIO 1220
+#define IDC_AUTO_RUN_METHOD_TASK_SCHEDULE_RADIO 1221
 #define ID_32771                        32771
 #define ID_NETWORK_INFO                 32772
 #define ID_32773                        32773
@@ -469,7 +468,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        349
 #define _APS_NEXT_COMMAND_VALUE         33666
-#define _APS_NEXT_CONTROL_VALUE         1220
+#define _APS_NEXT_CONTROL_VALUE         1221
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
